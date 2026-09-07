@@ -1,0 +1,55 @@
+# Git ignore file for AI-SNIDS
+# ─── Python ────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ─── Virtual Environment ───────────────────────────────────────
+venv/
+.venv/
+env/
+
+# ─── Environment Secrets ───────────────────────────────────────
+.env
+# .env.example is intentionally tracked (no real secrets)
+
+# ─── Data (large files) ────────────────────────────────────────
+data/*.csv
+data/*.pcap
+data/*.pkl
+data/ai_snids.db
+
+# ─── Trained Model ───────────────────────────────────────────
+# Pre-trained models (rf_model.pkl is 12MB, within GitHub 100MB limit)
+# ai/model/*.pkl is tracked so repo runs out of the box
+!ai/model/*.pkl
+
+# ─── Jupyter ───────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ─── IDE ───────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ─── OS ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Test / Coverage ───────────────────────────────────────────
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ─── Logs ──────────────────────────────────────────────────────
+*.log
+logs/

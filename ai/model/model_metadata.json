@@ -1,0 +1,38 @@
+{
+  "model_type": "RandomForestClassifier",
+  "n_estimators": 100,
+  "max_depth": 20,
+  "class_weight": "balanced",
+  "n_features": 20,
+  "feature_names": [
+    "Fwd IAT Total",
+    "Flow Duration",
+    "Idle Max",
+    "Fwd IAT Max",
+    "Flow IAT Max",
+    "Idle Mean",
+    "Idle Min",
+    "Bwd IAT Total",
+    "Bwd IAT Max",
+    "Flow Bytes/s",
+    "Fwd IAT Std",
+    "Flow IAT Std",
+    "Fwd IAT Mean",
+    "Bwd IAT Std",
+    "Fwd Header Length",
+    "Fwd Header Length.1",
+    "Idle Std",
+    "Bwd IAT Mean",
+    "Fwd IAT Min",
+    "Bwd IAT Min"
+  ],
+  "class_names": [
+    "BENIGN",
+    "BruteForce",
+    "DDoS",
+    "DoS",
+    "PortScan"
+  ],
+  "train_samples": 75065,
+  "test_samples": 18767
+}

@@ -1,0 +1,53 @@
+{
+  "model_name": "LogisticRegression",
+  "accuracy": 0.6078222411680076,
+  "precision_macro": 0.733727021887716,
+  "recall_macro": 0.6014757860498735,
+  "f1_macro": 0.610010411725237,
+  "f1_weighted": 0.6065787582283205,
+  "confusion_matrix": [
+    [
+      1005,
+      47,
+      307,
+      55,
+      2586
+    ],
+    [
+      217,
+      1397,
+      0,
+      0,
+      1153
+    ],
+    [
+      348,
+      0,
+      2751,
+      232,
+      669
+    ],
+    [
+      236,
+      7,
+      101,
+      2312,
+      1344
+    ],
+    [
+      57,
+      1,
+      0,
+      0,
+      3942
+    ]
+  ],
+  "class_names": [
+    "BENIGN",
+    "BruteForce",
+    "DDoS",
+    "DoS",
+    "PortScan"
+  ],
+  "classification_report": "              precision    recall  f1-score   support\n\n      BENIGN       0.54      0.25      0.34      4000\n  BruteForce       0.96      0.50      0.66      2767\n        DDoS       0.87      0.69      0.77      4000\n         DoS       0.89      0.58      0.70      4000\n    PortScan       0.41      0.99      0.58      4000\n\n    accuracy                           0.61     18767\n   macro avg       0.73      0.60      0.61     18767\nweighted avg       0.72      0.61      0.61     18767\n"
+}
