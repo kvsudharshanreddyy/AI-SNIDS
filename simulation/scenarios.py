@@ -146,6 +146,35 @@ def run_suspicious_scenario(
             )
 
 
+def run_dynamic_switch_scenario(
+    network: VirtualNetwork,
+    initial_scenario: str,
+    injected_attack: str,
+    intensity: str,
+    num_events: int,
+    switch_ratio: float = 0.4,
+) -> Generator[dict, None, None]:
+    """
+    Simulate a sudden mid-stream attack injection.
+    Runs initial_scenario for (switch_ratio * num_events), then
+    suddenly switches to injected_attack for the remainder.
+    """
+    initial_count = max(1, int(num_events * switch_ratio))
+    attack_count = max(1, num_events - initial_count)
+
+    init_gen = get_scenario_generator(initial_scenario, network, intensity, initial_count)
+    for event in init_gen:
+        event["simulation_phase"] = "BASELINE"
+        event["is_injected"] = False
+        yield event
+
+    atk_gen = get_scenario_generator(injected_attack, network, intensity, attack_count)
+    for event in atk_gen:
+        event["simulation_phase"] = "SUDDEN_ATTACK"
+        event["is_injected"] = True
+        yield event
+
+
 # ─── Scenario Registry ────────────────────────────────────────────────────────
 
 SCENARIO_MAP = {
@@ -165,3 +194,4 @@ def get_scenario_generator(
     """Return a generator for the named scenario."""
     func = SCENARIO_MAP.get(scenario_name, run_normal_scenario)
     return func(network, intensity, num_events)
+

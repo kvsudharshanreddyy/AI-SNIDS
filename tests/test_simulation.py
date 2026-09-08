@@ -148,3 +148,47 @@ class TestSimulator:
             assert "features" in event
             assert "scenario" in event
             assert "protocol" in event
+
+    def test_dynamic_switch_scenario(self):
+        from simulation.scenarios import run_dynamic_switch_scenario
+        net = create_default_topology()
+        events = list(run_dynamic_switch_scenario(
+            network=net,
+            initial_scenario="Normal Traffic",
+            injected_attack="Port Scan",
+            intensity="LOW",
+            num_events=10,
+            switch_ratio=0.4,
+        ))
+        assert len(events) == 10
+        baseline_events = [e for e in events if e.get("simulation_phase") == "BASELINE"]
+        attack_events = [e for e in events if e.get("simulation_phase") == "SUDDEN_ATTACK"]
+        assert len(baseline_events) == 4
+        assert len(attack_events) == 6
+        assert attack_events[0]["is_injected"] is True
+        assert baseline_events[0]["is_injected"] is False
+
+    def test_generate_simulation_batch_with_injection(self):
+        batch = generate_simulation_batch(
+            scenario_name="Normal Traffic",
+            intensity="LOW",
+            duration_sec=2,
+            injected_attack="DDoS",
+            switch_ratio=0.5,
+        )
+        assert len(batch) == 10
+        scenarios = [e.get("simulation_phase") for e in batch]
+        assert "BASELINE" in scenarios
+        assert "SUDDEN_ATTACK" in scenarios
+
+    def test_run_instant_attack_burst(self):
+        from simulation.simulator import run_instant_attack_burst
+        results = run_instant_attack_burst("Port Scan", count=3, intensity="MEDIUM")
+        assert len(results) == 3
+        for res in results:
+            assert "prediction" in res
+            assert "db_event" in res
+            assert "was_blocked" in res
+            assert res["prediction"]["predicted_class"] in [
+                "BENIGN", "PortScan", "DoS Hulk", "DDoS", "FTP-Patator", "SSH-Patator", "Bot", "DoS", "Port Scan", "BLOCKED"
+            ]

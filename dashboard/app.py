@@ -950,10 +950,10 @@ def page_virtual_network():
 
 def page_attack_lab():
     st.markdown("# 🧪 Attack Scenario Lab")
-    st.markdown("*Run safe, synthetic attack scenarios through the real AI detection pipeline.*")
+    st.markdown("*Run safe, synthetic attack scenarios through the real AI detection pipeline with dynamic mid-stream attack injection.*")
     st.markdown('<div class="sim-disclaimer">⚠️ SIMULATION ONLY — No real attack traffic is generated. Everything stays inside the software.</div>', unsafe_allow_html=True)
 
-    from simulation.simulator import generate_simulation_batch, process_simulated_event
+    from simulation.simulator import generate_simulation_batch, process_simulated_event, run_instant_attack_burst
 
     # ── Attack animation helper ────────────────────────────
     attack_icons = {
@@ -968,12 +968,43 @@ def page_attack_lab():
     col_config, col_view = st.columns([1, 2])
 
     with col_config:
-        st.markdown("### ⚙️ Configuration")
+        st.markdown("### ⚙️ Scenario Configuration")
 
         scenario = st.selectbox(
-            "Attack Scenario",
-            ["Normal Traffic", "Port Scan", "Brute Force", "DoS", "DDoS", "Suspicious Traffic"]
+            "1️⃣ Initial Baseline Traffic",
+            ["Normal Traffic", "Port Scan", "Brute Force", "DoS", "DDoS", "Suspicious Traffic"],
+            index=0,
+            help="Traffic that starts the simulation."
         )
+
+        injected_attack = st.selectbox(
+            "2️⃣ ⚡ Sudden Mid-Stream Attack",
+            [
+                "None (Pure Scenario)",
+                "Port Scan",
+                "Brute Force",
+                "DoS",
+                "DDoS",
+                "Suspicious Traffic",
+            ],
+            index=1 if scenario == "Normal Traffic" else 0,
+            help="Simulate an attacker striking suddenly in the middle of ongoing traffic!"
+        )
+
+        switch_ratio = 0.5
+        if injected_attack != "None (Pure Scenario)":
+            strike_point = st.select_slider(
+                "3️⃣ 🎯 Sudden Attack Strike Point",
+                options=["Early (30%)", "Midway (50%)", "Late (70%)"],
+                value="Midway (50%)",
+                help="When the sudden attack strikes during the traffic flow."
+            )
+            timing_map = {
+                "Early (30%)": 0.3,
+                "Midway (50%)": 0.5,
+                "Late (70%)": 0.7,
+            }
+            switch_ratio = timing_map.get(strike_point, 0.5)
 
         intensity = st.select_slider(
             "Intensity", options=["LOW", "MEDIUM", "HIGH"], value="MEDIUM"
@@ -983,22 +1014,30 @@ def page_attack_lab():
             "Duration (seconds)", options=[10, 30, 60], index=0, horizontal=True
         )
 
-        start_btn = st.button("▶ START SIMULATION", use_container_width=True, type="primary")
+        start_btn = st.button("▶ START DYNAMIC SIMULATION", use_container_width=True, type="primary")
 
         # Scenario description
         st.divider()
-        descriptions = {
-            "Normal Traffic": "Client A (10.0.0.10) → Server B (10.0.0.100)\n\nLegitimate web browsing traffic. AI should classify as BENIGN.",
-            "Port Scan": "Attacker (10.0.0.50) → Server B (10.0.0.100)\n\nScanning ports 21, 22, 80, 443, etc. Reconnaissance behavior.",
-            "Brute Force": "Attacker (10.0.0.50) → Server B (10.0.0.100)\n\nRepeated SSH/FTP login attempts.",
-            "DoS": "Attacker (10.0.0.50) → Server B (10.0.0.100)\n\nSingle source floods target with requests.",
-            "DDoS": "Attackers (10.0.0.51–56) → Server B (10.0.0.100)\n\n6 distributed sources flood target simultaneously.",
-            "Suspicious Traffic": "Mixed sources → Server B (10.0.0.100)\n\nAmbiguous traffic that may confuse the model.",
-        }
-        st.info(descriptions.get(scenario, ""))
+        if injected_attack != "None (Pure Scenario)":
+            st.info(
+                f"**⚡ Dynamic Sudden Attack Scenario:**\n\n"
+                f"1. **Baseline Phase:** Starts with legitimate **{scenario}** (Client A → Server B).\n"
+                f"2. **Sudden Strike:** At **{int(switch_ratio*100)}%**, attacker suddenly strikes with **{injected_attack}**!\n"
+                f"3. **AI Response:** AI-SNIDS detects the transition in real time and triggers defense."
+            )
+        else:
+            descriptions = {
+                "Normal Traffic": "Client A (10.0.0.10) → Server B (10.0.0.100)\n\nLegitimate web browsing traffic. AI should classify as BENIGN.",
+                "Port Scan": "Attacker (10.0.0.50) → Server B (10.0.0.100)\n\nScanning ports 21, 22, 80, 443, etc. Reconnaissance behavior.",
+                "Brute Force": "Attacker (10.0.0.50) → Server B (10.0.0.100)\n\nRepeated SSH/FTP login attempts.",
+                "DoS": "Attacker (10.0.0.50) → Server B (10.0.0.100)\n\nSingle source floods target with requests.",
+                "DDoS": "Attackers (10.0.0.51–56) → Server B (10.0.0.100)\n\n6 distributed sources flood target simultaneously.",
+                "Suspicious Traffic": "Mixed sources → Server B (10.0.0.100)\n\nAmbiguous traffic that may confuse the model.",
+            }
+            st.info(descriptions.get(scenario, ""))
 
     with col_view:
-        st.markdown("### 📊 Simulation View")
+        st.markdown("### 📊 Live Simulation View")
         anim_area = st.empty()
         status_box = st.empty()
         progress_bar = st.empty()
@@ -1006,14 +1045,27 @@ def page_attack_lab():
         live_chart = st.empty()
         details_area = st.empty()
 
-        status_box.info("🔵 Ready. Select a scenario and click START SIMULATION.")
+        status_box.info("🔵 Ready. Configure above or click START SIMULATION (or use the Instant Attack Pad below).")
 
     if start_btn:
-        icon, label = attack_icons.get(scenario, ("⚡", "Running..."))
-        is_attack_scenario = scenario != "Normal Traffic"
+        is_dynamic = (injected_attack != "None (Pure Scenario)")
+        effective_scenario = injected_attack if is_dynamic else scenario
+        icon, label = attack_icons.get(effective_scenario, ("⚡", "Running..."))
 
-        # Show attack animation
-        if is_attack_scenario:
+        # Initial animation state
+        if scenario == "Normal Traffic" and is_dynamic:
+            anim_area.markdown(
+                f'<div style="background:rgba(0,229,255,0.05); border:1px solid rgba(0,229,255,0.2); '
+                f'border-radius:14px; padding:1.5rem; text-align:center; animation: pulse-cyan 2s ease-in-out infinite;">'
+                f'<div style="font-size:3rem;">💻</div>'
+                f'<div style="color:#00E5FF; font-weight:600; font-size:1.1rem; margin-top:0.5rem;">'
+                f'Normal Baseline Traffic Flowing</div>'
+                f'<div style="color:rgba(255,255,255,0.6); font-size:0.85rem;">'
+                f'Client A (10.0.0.10) → Server B (10.0.0.100) | Standby for potential threats</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+        elif scenario != "Normal Traffic":
             anim_area.markdown(
                 f'<div class="attack-anim">'
                 f'<div class="hacker-icon">{icon}</div>'
@@ -1037,17 +1089,24 @@ def page_attack_lab():
                 unsafe_allow_html=True
             )
 
-        status_box.warning(f"⏳ Generating {scenario} events...")
+        status_box.warning(f"⏳ Initializing simulation pipeline...")
 
-        events_batch = generate_simulation_batch(scenario, intensity, duration)
+        events_batch = generate_simulation_batch(
+            scenario_name=scenario,
+            intensity=intensity,
+            duration_sec=duration,
+            injected_attack=injected_attack,
+            switch_ratio=switch_ratio,
+        )
         total_events = len(events_batch)
 
-        status_box.info(f"🔄 Running: {total_events} flows | {scenario} | {intensity} intensity")
+        status_box.info(f"🔄 Running: {total_events} flows | Baseline: {scenario} | Sudden Attack: {injected_attack}")
 
         chart_data = []
         threats_detected = 0
         blocked_count = 0
         sleep_interval = max(duration / total_events, 0.02) if total_events > 0 else 0
+        attack_switched_alerted = False
 
         for i, event in enumerate(events_batch):
             result = process_simulated_event(event)
@@ -1055,15 +1114,52 @@ def page_attack_lab():
             pred = result["prediction"]
 
             is_attack = pred.get("predicted_class", "BENIGN") not in ("BENIGN",)
+            is_injected_phase = (event.get("simulation_phase") == "SUDDEN_ATTACK")
+
             if is_attack:
                 threats_detected += 1
             if result["was_blocked"]:
                 blocked_count += 1
 
+            # ── Dynamic Animation & Alert Switching ──────────
+            if is_injected_phase or (is_attack and scenario == "Normal Traffic"):
+                cur_target = injected_attack if is_dynamic else db_event.attack_type
+                cur_icon, cur_label = attack_icons.get(cur_target, ("⚡", "Attack in progress"))
+                anim_area.markdown(
+                    f'<div class="attack-anim">'
+                    f'<div class="hacker-icon">{cur_icon}</div>'
+                    f'<div class="attack-text">⚡ SUDDEN ATTACK INJECTED! ⚡</div>'
+                    f'<div class="attack-detail"><b>{db_event.attack_type.upper()}</b> STRIKE — {cur_label}</div>'
+                    f'<div class="attack-detail" style="margin-top:0.5rem;">'
+                    f'Attacker (<code>{db_event.source_ip}</code>) → Server B (<code>10.0.0.100</code>)</div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+                status_box.error(
+                    f"🚨 Flow #{i+1}: ⚡ SUDDEN INTRUSION! {db_event.source_ip} → {db_event.attack_type} "
+                    f"| Conf: {db_event.confidence*100:.1f}% | Risk: {db_event.risk_level} | Action: {db_event.action}"
+                )
+            elif not is_attack:
+                anim_area.markdown(
+                    f'<div style="background:rgba(0,229,255,0.05); border:1px solid rgba(0,229,255,0.2); '
+                    f'border-radius:14px; padding:1.5rem; text-align:center; animation: pulse-cyan 2s ease-in-out infinite;">'
+                    f'<div style="font-size:3rem;">💻</div>'
+                    f'<div style="color:#00E5FF; font-weight:600; font-size:1.1rem; margin-top:0.5rem;">'
+                    f'Normal Baseline Traffic Flowing</div>'
+                    f'<div style="color:rgba(255,255,255,0.6); font-size:0.85rem;">'
+                    f'Client A (10.0.0.10) → Server B (10.0.0.100) | Network Status: Healthy</div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+                status_box.info(
+                    f"🟢 Flow #{i+1}: Normal Traffic | AI: BENIGN ({db_event.confidence*100:.1f}%) | Risk: MONITOR | Action: ALLOW"
+                )
+
             chart_data.append({
                 "flow": i + 1,
                 "risk_score": db_event.risk_score,
                 "attack_type": db_event.attack_type,
+                "phase": "Attack" if is_attack else "Normal",
             })
 
             # Update progress
@@ -1073,14 +1169,15 @@ def page_attack_lab():
                 mc1, mc2, mc3, mc4 = st.columns(4)
                 mc1.metric("Flows Analyzed", i + 1)
                 mc2.metric("Threats Detected", threats_detected)
-                mc3.metric("Blocked", blocked_count)
-                mc4.metric("Latest", db_event.attack_type)
+                mc3.metric("Blocked Sources", blocked_count)
+                mc4.metric("Latest Flow", db_event.attack_type)
 
             # Live risk chart
             df_chart = pd.DataFrame(chart_data)
             fig = px.line(
                 df_chart, x="flow", y="risk_score",
-                color_discrete_sequence=["#00E5FF"],
+                color="phase",
+                color_discrete_map={"Normal": "#00E5FF", "Attack": "#fc8181"},
                 labels={"flow": "Flow #", "risk_score": "Risk Score"},
             )
             fig.update_layout(
@@ -1091,32 +1188,30 @@ def page_attack_lab():
                 xaxis=dict(gridcolor="#2d3748"),
                 margin=dict(t=10, b=20, l=20, r=20),
                 height=250,
-                showlegend=False,
+                showlegend=True,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             )
-            fig.add_hline(y=0.7, line_dash="dash", line_color="#fc8181", annotation_text="HIGH RISK")
+            fig.add_hline(y=0.7, line_dash="dash", line_color="#fc8181", annotation_text="HIGH RISK THRESHOLD")
             live_chart.plotly_chart(fig, use_container_width=True)
 
             time.sleep(sleep_interval)
 
         # ── Simulation Complete — Show Result Banner ──────────
-        status_box.success(f"✅ Simulation Complete — {total_events} flows analyzed.")
+        status_box.success(f"✅ Dynamic Simulation Complete — {total_events} flows analyzed.")
 
-        # Clear the attack animation and replace with result
         if threats_detected > 0:
-            # ── DANGER — Network Compromised ──
             anim_area.markdown(
                 f'<div class="result-danger">'
                 f'<div class="result-icon">🚨</div>'
-                f'<div class="result-title">⚠️ NETWORK UNDER THREAT ⚠️</div>'
+                f'<div class="result-title">⚠️ INTRUSION DETECTED & MITIGATED ⚠️</div>'
                 f'<div class="result-sub">'
-                f'{threats_detected} malicious flows detected — {blocked_count} sources blocked</div>'
+                f'{threats_detected} malicious flows detected — attacker isolated</div>'
                 f'<div class="result-sub" style="margin-top:0.5rem;">'
-                f'Attack Type: <b>{scenario}</b> | Go to <b>Response Center</b> for details</div>'
+                f'Scenario: <b>{scenario}</b> ➔ Injected Strike: <b>{injected_attack}</b> | See <b>Response Center</b> for details</div>'
                 f'</div>',
                 unsafe_allow_html=True
             )
         else:
-            # ── SAFE — Good to Go ──
             anim_area.markdown(
                 '<div class="result-safe">'
                 '<div class="result-icon">✅</div>'
@@ -1129,11 +1224,60 @@ def page_attack_lab():
             )
 
         with details_area.container():
-            st.markdown("### 📋 Simulation Summary")
+            st.markdown("### 📋 Dynamic Simulation Summary")
             scol1, scol2, scol3 = st.columns(3)
             scol1.metric("Total Flows", total_events)
-            scol2.metric("Threats Found", threats_detected)
+            scol2.metric("Threats Flagged", threats_detected)
             scol3.metric("Sources Blocked", blocked_count)
+
+    # ═══════════════════════════════════════════════════════════════
+    # REAL-TIME INSTANT ATTACK INJECTION PAD
+    # ═══════════════════════════════════════════════════════════════
+    st.divider()
+    st.markdown("### ⚡ Real-Time Instant Attack Injection Pad")
+    st.markdown(
+        "*Simulate sudden, unplanned attacks on demand! "
+        "Click any button below to instantly strike the virtual network mid-operation:* "
+    )
+
+    pad_col1, pad_col2, pad_col3, pad_col4, pad_col5 = st.columns(5)
+
+    def _handle_instant_strike(attack_name: str, friendly_label: str, is_attack: bool = True):
+        burst_results = run_instant_attack_burst(attack_name, count=6, intensity="HIGH")
+        latest = burst_results[-1]
+        db_e = latest["db_event"]
+        if is_attack:
+            st.error(
+                f"💥 **SUDDEN {friendly_label.upper()} STRIKE INJECTED!** "
+                f"AI-SNIDS detected {db_e.attack_type} with {db_e.confidence*100:.1f}% confidence. "
+                f"Risk: **{db_e.risk_level}** | Action: **{db_e.action}** | Attacker IP: `{db_e.source_ip}`."
+            )
+        else:
+            st.success(
+                f"🟢 **NORMAL TRAFFIC INJECTED!** Client A (10.0.0.10) → Server B (10.0.0.100). "
+                f"AI-SNIDS classified as **BENIGN** with {db_e.confidence*100:.1f}% confidence (Action: ALLOW)."
+            )
+
+    with pad_col1:
+        if st.button("🔓 Sudden Port Scan", use_container_width=True, help="Attacker 10.0.0.50 suddenly probes ports"):
+            _handle_instant_strike("Port Scan", "Port Scan")
+
+    with pad_col2:
+        if st.button("💥 Sudden DDoS Swarm", use_container_width=True, help="Distributed botnet 10.0.0.51-56 suddenly floods server"):
+            _handle_instant_strike("DDoS", "DDoS Swarm")
+
+    with pad_col3:
+        if st.button("💣 Sudden DoS Flood", use_container_width=True, help="Attacker 10.0.0.50 suddenly sends high packet rate flood"):
+            _handle_instant_strike("DoS", "DoS Flood")
+
+    with pad_col4:
+        if st.button("🔨 Sudden Brute Force", use_container_width=True, help="Attacker 10.0.0.50 suddenly attacks SSH/FTP ports"):
+            _handle_instant_strike("Brute Force", "Brute Force")
+
+    with pad_col5:
+        if st.button("💻 Send Normal Flow", use_container_width=True, help="Client A 10.0.0.10 sends clean web traffic"):
+            _handle_instant_strike("Normal Traffic", "Normal Traffic", is_attack=False)
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

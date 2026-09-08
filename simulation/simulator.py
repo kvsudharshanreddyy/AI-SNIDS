@@ -112,13 +112,16 @@ def process_simulated_event(event_dict: dict) -> dict:
         )
         session.add(db_event)
 
-        # If BLOCK action, add to simulated blocklist
-        if prediction["action"] == "BLOCK" and src_ip not in ("unknown", "N/A"):
+        # If BLOCK action or detected attack from simulated attacker
+        should_block = (
+            prediction["action"] == "BLOCK"
+            or (prediction["predicted_class"] != "BENIGN" and prediction["confidence"] >= 0.75)
+        )
+        if should_block and src_ip not in ("unknown", "N/A"):
             _add_to_blocklist(
                 session, src_ip,
-                f"Auto-blocked: {prediction['predicted_class']} "
-                f"(confidence {prediction['confidence']:.2f}, "
-                f"risk {prediction['risk_level']})"
+                f"Auto-defense: {prediction['predicted_class']} detected "
+                f"(confidence {prediction['confidence']*100:.1f}%, risk {prediction['risk_level']})"
             )
 
         session.commit()
@@ -135,11 +138,15 @@ def process_simulated_event(event_dict: dict) -> dict:
 
 
 def generate_simulation_batch(
-    scenario_name: str, intensity: str, duration_sec: int
+    scenario_name: str,
+    intensity: str,
+    duration_sec: int,
+    injected_attack: str = "None (Pure Scenario)",
+    switch_ratio: float = 0.4,
 ) -> list:
     """
     Pre-generate a bounded batch of flow events.
-
+    Supports mid-stream sudden attack injection when injected_attack is set.
     Cap at 500 events to prevent UI hang.
     """
     multiplier = {"LOW": 0.5, "MEDIUM": 1.0, "HIGH": 2.0}.get(intensity, 1.0)
@@ -147,6 +154,33 @@ def generate_simulation_batch(
     total_events = min(duration_sec * events_per_sec, 500)
 
     net = create_default_topology()
-    generator = get_scenario_generator(scenario_name, net, intensity, total_events)
+
+    if injected_attack and injected_attack not in ("None (Pure Scenario)", "None", ""):
+        from simulation.scenarios import run_dynamic_switch_scenario
+        generator = run_dynamic_switch_scenario(
+            network=net,
+            initial_scenario=scenario_name,
+            injected_attack=injected_attack,
+            intensity=intensity,
+            num_events=total_events,
+            switch_ratio=switch_ratio,
+        )
+    else:
+        generator = get_scenario_generator(scenario_name, net, intensity, total_events)
 
     return list(generator)
+
+
+def run_instant_attack_burst(scenario_name: str, count: int = 5, intensity: str = "HIGH") -> list[dict]:
+    """
+    Generate and process an immediate, sudden attack burst.
+    Used for instant real-time attack injection pad.
+    """
+    net = create_default_topology()
+    events = list(get_scenario_generator(scenario_name, net, intensity, count))
+    results = []
+    for event in events:
+        res = process_simulated_event(event)
+        results.append(res)
+    return results
+
