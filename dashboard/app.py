@@ -23,6 +23,10 @@ PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+import importlib
+import dashboard.theme
+importlib.reload(dashboard.theme)
+
 from dashboard.theme import (
     GLOBAL_CSS,
     COLOR_BLACK,
