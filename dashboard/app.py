@@ -1,452 +1,78 @@
 """
 dashboard/app.py
 
-AI-SNIDS — Unified Security Story Dashboard
-
-This dashboard tells ONE coherent security story:
-  1. Client A communicates with Server B (protected by cryptography)
-  2. AI-SNIDS monitors the virtual network
-  3. An attacker launches simulated attacks
-  4. AI detects the threat using Random Forest
-  5. Risk Engine assesses severity
-  6. Response Engine simulates blocking
-  7. Everything is logged to SQLite
-  8. Dashboard visualizes it all
-
-Run with:
-    streamlit run dashboard/app.py --server.port 8080
+AI-SNIDS — AI-Powered Network Intrusion Detection & Security Operations Center.
+Enterprise-grade SOC dashboard providing real-time telemetry, threat detection,
+autonomous response simulation, and end-to-end cryptographic verification.
 """
 
 import sys
-import json
-import time
 from pathlib import Path
 from datetime import datetime, timezone
+import json
+import time
 
-import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import numpy as np
+import streamlit as st
 
-# ─── Project Path Setup ────────────────────────────────────────────────────────
-PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+# Add project root to sys.path
+PROJECT_ROOT = Path(__file__).parent.parent.resolve()
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from dashboard.theme import (
+    GLOBAL_CSS,
+    COLOR_BG,
+    COLOR_BG_SECONDARY,
+    COLOR_CARD,
+    COLOR_CARD_HOVER,
+    COLOR_BORDER,
+    COLOR_AI_PRIMARY,
+    COLOR_AI_SECONDARY,
+    COLOR_TEXT_PRIMARY,
+    COLOR_TEXT_SECONDARY,
+    COLOR_TEXT_MUTED,
+    SEV_LOW,
+    SEV_MED,
+    SEV_HIGH,
+    SEV_CRITICAL,
+    get_icon,
+    render_section_header,
+    render_metric_card,
+    render_severity_badge,
+    render_network_node,
+    get_plotly_soc_layout,
+)
+from simulation.simulator import (
+    generate_simulation_batch,
+    process_simulated_event,
+    run_instant_attack_burst,
+    create_default_topology,
+)
 
 # ─── Page Configuration ────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="AI-SNIDS | Security Center",
+    page_title="AI-SNIDS | Security Operations Center",
     page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ─── Custom CSS ────────────────────────────────────────────────────────────────
-st.markdown("""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
-    /* ─── Keyframe Animations ─────────────────────────────── */
-    @keyframes pulse-red {
-        0%, 100% { box-shadow: 0 0 5px rgba(252, 129, 129, 0.3); }
-        50% { box-shadow: 0 0 25px rgba(252, 129, 129, 0.7), 0 0 50px rgba(252, 129, 129, 0.3); }
-    }
-    @keyframes pulse-green {
-        0%, 100% { box-shadow: 0 0 5px rgba(104, 211, 145, 0.3); }
-        50% { box-shadow: 0 0 25px rgba(104, 211, 145, 0.7), 0 0 50px rgba(104, 211, 145, 0.3); }
-    }
-    @keyframes pulse-cyan {
-        0%, 100% { box-shadow: 0 0 5px rgba(0, 229, 255, 0.2); }
-        50% { box-shadow: 0 0 20px rgba(0, 229, 255, 0.5), 0 0 40px rgba(0, 229, 255, 0.2); }
-    }
-    @keyframes shake {
-        0%, 100% { transform: translateX(0); }
-        10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
-        20%, 40%, 60%, 80% { transform: translateX(4px); }
-    }
-    @keyframes slide-in {
-        from { opacity: 0; transform: translateY(20px); }
-        to   { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes glow-border {
-        0%, 100% { border-color: rgba(0, 229, 255, 0.15); }
-        50% { border-color: rgba(0, 229, 255, 0.5); }
-    }
-    @keyframes attack-flash {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.6; }
-    }
-
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif !important;
-        letter-spacing: -0.02em;
-    }
-
-    .stApp {
-        background-color: #0a0a0a;
-        color: #f5f5f5;
-        background-image: radial-gradient(circle at top right, rgba(0, 229, 255, 0.05), transparent 40%),
-                          radial-gradient(circle at bottom left, rgba(157, 0, 255, 0.05), transparent 40%);
-    }
-
-    [data-testid="stSidebar"] {
-        background-color: rgba(10, 10, 10, 0.95) !important;
-        border-right: 1px solid rgba(255, 255, 255, 0.05);
-    }
-    [data-testid="stSidebar"]:hover {
-        border-right: 1px solid rgba(0, 229, 255, 0.2);
-    }
-
-    /* ─── Buttons ─────────────────────────────────────────── */
-    .stButton > button {
-        background-color: transparent !important;
-        border: 1px solid rgba(0, 229, 255, 0.4) !important;
-        color: #00E5FF !important;
-        border-radius: 8px !important;
-        font-weight: 500 !important;
-        transition: all 0.3s ease !important;
-    }
-    .stButton > button:hover {
-        background-color: rgba(0, 229, 255, 0.15) !important;
-        border-color: #00E5FF !important;
-        box-shadow: 0 0 20px rgba(0, 229, 255, 0.3), 0 0 40px rgba(0, 229, 255, 0.1) !important;
-        transform: translateY(-2px) !important;
-    }
-    .stButton > button:active {
-        transform: translateY(0) scale(0.98) !important;
-    }
-
-    /* ─── Metric Cards ────────────────────────────────────── */
-    [data-testid="metric-container"] {
-        background: rgba(20, 20, 20, 0.6);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    [data-testid="metric-container"]:hover {
-        transform: translateY(-4px) scale(1.02);
-        border-color: rgba(0, 229, 255, 0.4);
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 229, 255, 0.1);
-    }
-
-    [data-testid="stMetricValue"] {
-        color: #ffffff !important;
-        font-weight: 600 !important;
-    }
-    [data-testid="stMetricLabel"] {
-        color: rgba(255, 255, 255, 0.6) !important;
-        text-transform: uppercase;
-        font-size: 0.8rem !important;
-        letter-spacing: 0.05em;
-    }
-
-    h1, h2, h3 {
-        color: #ffffff !important;
-        font-weight: 600 !important;
-        letter-spacing: -0.04em !important;
-    }
-
-    .highlight-cyan { color: #00E5FF; text-shadow: 0 0 10px rgba(0,229,255,0.3); }
-
-    /* ─── Alert Cards (with hover) ────────────────────────── */
-    .high-alert {
-        background: rgba(252, 129, 129, 0.05);
-        border: 1px solid rgba(252, 129, 129, 0.2);
-        border-left: 4px solid #fc8181;
-        border-radius: 8px;
-        padding: 1rem 1.2rem;
-        margin: 0.5rem 0;
-        font-weight: 500;
-        box-shadow: 0 0 20px rgba(252, 129, 129, 0.05);
-        transition: all 0.3s ease;
-    }
-    .high-alert:hover {
-        background: rgba(252, 129, 129, 0.1);
-        border-color: rgba(252, 129, 129, 0.5);
-        box-shadow: 0 0 25px rgba(252, 129, 129, 0.15);
-        transform: translateX(4px);
-    }
-    .medium-alert {
-        background: rgba(246, 173, 85, 0.05);
-        border: 1px solid rgba(246, 173, 85, 0.2);
-        border-left: 4px solid #f6ad55;
-        border-radius: 8px;
-        padding: 1rem 1.2rem;
-        margin: 0.5rem 0;
-        transition: all 0.3s ease;
-    }
-    .medium-alert:hover {
-        background: rgba(246, 173, 85, 0.1);
-        border-color: rgba(246, 173, 85, 0.5);
-        box-shadow: 0 0 25px rgba(246, 173, 85, 0.15);
-        transform: translateX(4px);
-    }
-    .low-alert {
-        background: rgba(99, 179, 237, 0.05);
-        border: 1px solid rgba(99, 179, 237, 0.2);
-        border-left: 4px solid #63b3ed;
-        border-radius: 8px;
-        padding: 1rem 1.2rem;
-        margin: 0.5rem 0;
-        transition: all 0.3s ease;
-    }
-    .low-alert:hover {
-        background: rgba(99, 179, 237, 0.1);
-        border-color: rgba(99, 179, 237, 0.5);
-        box-shadow: 0 0 25px rgba(99, 179, 237, 0.15);
-        transform: translateX(4px);
-    }
-    .benign-alert {
-        background: rgba(104, 211, 145, 0.05);
-        border: 1px solid rgba(104, 211, 145, 0.2);
-        border-left: 4px solid #68d391;
-        border-radius: 8px;
-        padding: 1rem 1.2rem;
-        margin: 0.5rem 0;
-        transition: all 0.3s ease;
-    }
-    .benign-alert:hover {
-        background: rgba(104, 211, 145, 0.1);
-        border-color: rgba(104, 211, 145, 0.5);
-        box-shadow: 0 0 25px rgba(104, 211, 145, 0.15);
-        transform: translateX(4px);
-    }
-
-    /* ─── Crypto / Topology Boxes ─────────────────────────── */
-    .crypto-box {
-        background-color: rgba(0, 0, 0, 0.5);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 8px;
-        padding: 1rem;
-        font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-        font-size: 0.85rem;
-        word-break: break-all;
-        color: #00E5FF;
-        box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
-        transition: all 0.3s ease;
-    }
-    .crypto-box:hover {
-        border-color: rgba(0, 229, 255, 0.4);
-        box-shadow: inset 0 0 10px rgba(0,0,0,0.5), 0 0 15px rgba(0, 229, 255, 0.1);
-    }
-
-    .topology-box {
-        background: rgba(0,0,0,0.5);
-        padding: 1.5rem;
-        border-radius: 12px;
-        border: 1px solid rgba(0, 229, 255, 0.15);
-        font-family: 'SFMono-Regular', Consolas, monospace;
-        color: #00E5FF;
-        text-align: center;
-        white-space: pre;
-        line-height: 1.5;
-        font-size: 0.85rem;
-        transition: all 0.3s ease;
-    }
-    .topology-box:hover {
-        border-color: rgba(0, 229, 255, 0.4);
-        box-shadow: 0 0 20px rgba(0, 229, 255, 0.1);
-        animation: glow-border 2s ease-in-out infinite;
-    }
-
-    /* ─── Device Cards ────────────────────────────────────── */
-    .device-card {
-        background: rgba(20, 20, 20, 0.7);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 10px;
-        padding: 1rem;
-        text-align: center;
-        margin: 0.3rem 0;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    .device-card:hover {
-        transform: translateY(-6px) scale(1.03);
-        border-color: rgba(0, 229, 255, 0.4);
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 229, 255, 0.1);
-    }
-
-    .sim-disclaimer {
-        background: rgba(246, 173, 85, 0.08);
-        border: 1px solid rgba(246, 173, 85, 0.3);
-        border-radius: 8px;
-        padding: 0.8rem 1rem;
-        font-size: 0.85rem;
-        color: #f6ad55;
-        text-align: center;
-        margin: 0.5rem 0;
-        transition: all 0.3s ease;
-    }
-    .sim-disclaimer:hover {
-        background: rgba(246, 173, 85, 0.12);
-        border-color: rgba(246, 173, 85, 0.5);
-    }
-
-    [data-testid="stDataFrame"] {
-        border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        overflow: hidden;
-        transition: all 0.3s ease;
-    }
-    [data-testid="stDataFrame"]:hover {
-        border-color: rgba(0, 229, 255, 0.25);
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    }
-
-    /* ─── Selectbox / Slider / Radio Hover ────────────────── */
-    [data-testid="stSelectbox"]:hover,
-    [data-testid="stSlider"]:hover,
-    .stRadio:hover {
-        filter: brightness(1.1);
-    }
-
-    /* ─── Attack Animation Panels ─────────────────────────── */
-    .attack-anim {
-        background: rgba(252, 50, 50, 0.06);
-        border: 2px solid rgba(252, 129, 129, 0.4);
-        border-radius: 14px;
-        padding: 1.5rem;
-        text-align: center;
-        animation: pulse-red 1.5s ease-in-out infinite;
-        margin: 0.5rem 0;
-    }
-    .attack-anim .hacker-icon {
-        font-size: 3rem;
-        animation: shake 0.6s ease-in-out infinite;
-        display: inline-block;
-    }
-    .attack-anim .attack-text {
-        color: #fc8181;
-        font-weight: 700;
-        font-size: 1.1rem;
-        margin-top: 0.5rem;
-        animation: attack-flash 1s ease-in-out infinite;
-    }
-    .attack-anim .attack-detail {
-        color: rgba(255,255,255,0.6);
-        font-size: 0.85rem;
-        margin-top: 0.3rem;
-    }
-
-    /* ─── Safe / Danger Result Banners ────────────────────── */
-    .result-safe {
-        background: rgba(104, 211, 145, 0.08);
-        border: 2px solid rgba(104, 211, 145, 0.5);
-        border-radius: 16px;
-        padding: 2rem;
-        text-align: center;
-        animation: pulse-green 2s ease-in-out infinite, slide-in 0.5s ease-out;
-    }
-    .result-safe .result-icon { font-size: 3.5rem; }
-    .result-safe .result-title {
-        color: #68d391; font-weight: 700; font-size: 1.5rem; margin-top: 0.5rem;
-    }
-    .result-safe .result-sub {
-        color: rgba(255,255,255,0.7); font-size: 0.95rem; margin-top: 0.3rem;
-    }
-
-    .result-danger {
-        background: rgba(252, 129, 129, 0.08);
-        border: 2px solid rgba(252, 129, 129, 0.5);
-        border-radius: 16px;
-        padding: 2rem;
-        text-align: center;
-        animation: pulse-red 1.5s ease-in-out infinite, slide-in 0.5s ease-out;
-    }
-    .result-danger .result-icon { font-size: 3.5rem; }
-    .result-danger .result-title {
-        color: #fc8181; font-weight: 700; font-size: 1.5rem; margin-top: 0.5rem;
-    }
-    .result-danger .result-sub {
-        color: rgba(255,255,255,0.7); font-size: 0.95rem; margin-top: 0.3rem;
-    }
-
-    /* ─── Expander Hover ──────────────────────────────────── */
-    [data-testid="stExpander"] {
-        transition: all 0.3s ease;
-        border-radius: 8px;
-    }
-    [data-testid="stExpander"]:hover {
-        border-color: rgba(0, 229, 255, 0.3) !important;
-        box-shadow: 0 2px 15px rgba(0, 0, 0, 0.3);
-    }
-
-    /* ─── How AI Detection Works Pipeline Cards ───────────── */
-    .pipeline-step-card {
-        background: rgba(15, 23, 42, 0.7);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 12px;
-        padding: 1.25rem 1rem;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start;
-    }
-    .pipeline-step-card:hover {
-        transform: translateY(-6px) scale(1.02);
-        border-color: rgba(0, 229, 255, 0.5);
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 229, 255, 0.2);
-    }
-    .pipeline-step-num {
-        display: inline-block;
-        background: rgba(0, 229, 255, 0.15);
-        color: #00E5FF;
-        font-size: 0.72rem;
-        font-weight: 700;
-        padding: 0.2rem 0.55rem;
-        border-radius: 20px;
-        border: 1px solid rgba(0, 229, 255, 0.4);
-        margin-bottom: 0.5rem;
-        letter-spacing: 0.05em;
-        width: fit-content;
-    }
-    .pipeline-step-title {
-        color: #ffffff;
-        font-size: 0.95rem;
-        font-weight: 600;
-        margin-bottom: 0.4rem;
-    }
-    .pipeline-step-desc {
-        color: rgba(255, 255, 255, 0.68);
-        font-size: 0.8rem;
-        line-height: 1.45;
-    }
-    .pipeline-flow-banner {
-        background: rgba(0, 0, 0, 0.5);
-        border: 1px solid rgba(0, 229, 255, 0.2);
-        border-radius: 10px;
-        padding: 0.9rem 1.2rem;
-        text-align: center;
-        font-family: 'SFMono-Regular', Consolas, monospace;
-        color: #00E5FF;
-        font-size: 0.85rem;
-        margin: 1rem 0;
-        overflow-x: auto;
-        white-space: nowrap;
-        box-shadow: inset 0 0 15px rgba(0, 229, 255, 0.05);
-        transition: all 0.3s ease;
-    }
-    .pipeline-flow-banner:hover {
-        border-color: rgba(0, 229, 255, 0.5);
-        box-shadow: 0 0 20px rgba(0, 229, 255, 0.15);
-    }
-</style>
-""", unsafe_allow_html=True)
+# Inject Global SOC Stylesheet
+st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
 
 
-# ─── Cached Loaders ────────────────────────────────────────────────────────────
+# ─── Cached Model & Database Loaders ───────────────────────────────────────────
 
-@st.cache_resource(show_spinner="Loading AI model...")
+@st.cache_resource(show_spinner="Initializing AI detection engine...")
 def load_predictor():
     from ai.predict import Predictor
     return Predictor()
 
 
-@st.cache_resource(show_spinner="Connecting to database...")
+@st.cache_resource(show_spinner="Connecting to security database...")
 def get_db_session():
     from database.database import init_db, SessionLocal
     init_db()
@@ -471,7 +97,7 @@ def load_confusion_matrix_img():
     return path if path.exists() else None
 
 
-# ─── Database Helpers ──────────────────────────────────────────────────────────
+# ─── Database Access Helpers ───────────────────────────────────────────────────
 
 def get_recent_events(n: int = 50) -> list[dict]:
     try:
@@ -502,6 +128,9 @@ def get_statistics() -> dict:
         threats = session.query(func.count(SecurityEvent.id)).filter(
             SecurityEvent.attack_type != "BENIGN"
         ).scalar() or 0
+        high_risk = session.query(func.count(SecurityEvent.id)).filter(
+            SecurityEvent.risk_score >= 0.7
+        ).scalar() or 0
         blocked = session.query(func.count(BlockedIP.id)).filter(
             BlockedIP.is_active == True
         ).scalar() or 0
@@ -510,11 +139,18 @@ def get_statistics() -> dict:
         return {
             "total_samples": total,
             "threats_detected": threats,
+            "high_risk_threats": high_risk,
             "blocked_ips": blocked,
-            "detection_rate": f"{(threats / total * 100):.1f}%" if total > 0 else "N/A",
+            "detection_rate": f"{(threats / total * 100):.1f}%" if total > 0 else "0.0%",
         }
     except Exception:
-        return {"total_samples": 0, "threats_detected": 0, "blocked_ips": 0, "detection_rate": "N/A"}
+        return {
+            "total_samples": 0,
+            "threats_detected": 0,
+            "high_risk_threats": 0,
+            "blocked_ips": 0,
+            "detection_rate": "N/A",
+        }
 
 
 def get_blocked_ips() -> list[dict]:
@@ -530,418 +166,381 @@ def get_blocked_ips() -> list[dict]:
         return []
 
 
-# ─── Sidebar ───────────────────────────────────────────────────────────────────
+def toggle_ip_block(ip_address: str, block: bool, reason: str = "SOC Analyst Action") -> bool:
+    try:
+        SessionLocal = get_db_session()
+        from database.models import BlockedIP
+        session = SessionLocal()
+        existing = session.query(BlockedIP).filter_by(ip_address=ip_address).first()
+        if block:
+            if existing:
+                existing.is_active = True
+                existing.reason = reason
+                existing.blocked_at = datetime.now(timezone.utc)
+            else:
+                new_block = BlockedIP(
+                    ip_address=ip_address,
+                    reason=reason,
+                    is_active=True,
+                )
+                session.add(new_block)
+        else:
+            if existing:
+                existing.is_active = False
+        session.commit()
+        session.close()
+        return True
+    except Exception:
+        return False
 
-def render_sidebar():
+
+# ─── Sidebar Navigation & Telemetry ───────────────────────────────────────────
+
+def render_sidebar() -> str:
     with st.sidebar:
-        st.markdown("## 🛡️ AI-SNIDS")
-        st.markdown("*AI-Powered Secure Network*  \n*Intrusion Detection System*")
-        st.divider()
-
-        page = st.radio(
-            "Navigation",
-            options=[
-                "🛡️ Security Overview",
-                "🌐 Virtual Network",
-                "🧪 Attack Scenario Lab",
-                "📡 Live Traffic Monitor",
-                "🚨 Threat Center",
-                "🛑 Response Center",
-                "🔐 Crypto Lab",
-                "📊 Model Performance",
-            ],
-            label_visibility="collapsed"
+        # SOC Brand Header
+        st.markdown(
+            f"""
+            <div style="padding: 0.5rem 0 1rem 0; border-bottom: 1px solid {COLOR_BORDER}; margin-bottom: 1rem;">
+                <div style="display:flex; align-items:center; gap:0.6rem;">
+                    {get_icon("shield", size=22, color=COLOR_AI_PRIMARY)}
+                    <span style="font-size:1.15rem; font-weight:700; color:{COLOR_TEXT_PRIMARY}; letter-spacing:-0.02em;">
+                        AI-SNIDS
+                    </span>
+                </div>
+                <div style="font-size:0.75rem; color:{COLOR_TEXT_SECONDARY}; margin-top:0.25rem;">
+                    AI Network Security Operations
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
 
-        st.divider()
-        st.markdown("### System Status")
+        # 7-Page SOC Navigation
+        nav_options = [
+            "OVERVIEW",
+            "LIVE MONITORING",
+            "ATTACK SCENARIO LAB",
+            "THREAT CENTER",
+            "SECURE COMMUNICATION",
+            "MODEL PERFORMANCE",
+            "SYSTEM LOGS",
+        ]
 
+        page = st.radio("Navigation", options=nav_options, label_visibility="collapsed")
+
+        st.markdown(f'<div style="margin: 1.5rem 0 1rem 0; border-top: 1px solid {COLOR_BORDER};"></div>', unsafe_allow_html=True)
+
+        # System Status Telemetry
+        st.markdown(
+            f'<div style="font-size:0.68rem; font-weight:600; color:{COLOR_TEXT_MUTED}; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:0.75rem;">SYSTEM TELEMETRY</div>',
+            unsafe_allow_html=True,
+        )
+
+        # AI Engine status
         try:
             predictor = load_predictor()
-            if predictor.is_loaded:
-                st.success("✅ AI Model: Loaded")
-                st.caption(f"Classes: {', '.join(predictor.class_names)}")
-            else:
-                st.error("❌ AI Model: Not trained")
-        except Exception as e:
-            st.error(f"❌ Model error: {e}")
+            ai_status = "ONLINE" if predictor.is_loaded else "OFFLINE"
+            ai_color = SEV_LOW if predictor.is_loaded else SEV_HIGH
+        except Exception:
+            ai_status = "ERROR"
+            ai_color = SEV_HIGH
 
+        # Database status
         try:
             from database.database import health_check
-            if health_check():
-                st.success("✅ Database: Connected")
-            else:
-                st.error("❌ Database: Error")
+            db_status = "CONNECTED" if health_check() else "DISCONNECTED"
+            db_color = SEV_LOW if health_check() else SEV_HIGH
         except Exception:
-            st.warning("⚠ Database: Initializing...")
+            db_status = "UNAVAILABLE"
+            db_color = SEV_HIGH
 
-        st.success("✅ Network: ONLINE")
+        status_items = [
+            ("AI ENGINE", ai_status, ai_color),
+            ("NETWORK", "ACTIVE", SEV_LOW),
+            ("CRYPTO", "SECURE", SEV_LOW),
+            ("DATABASE", db_status, db_color),
+        ]
 
-        st.divider()
-        st.caption("Version 2.0.0 | Academic Prototype")
-        st.caption("🎓 BTech CSE (AI & ML)")
+        for label, val, color in status_items:
+            st.markdown(
+                f"""
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.45rem; font-size:0.78rem;">
+                    <span style="color:{COLOR_TEXT_SECONDARY}; font-weight:500;">{label}</span>
+                    <span style="display:inline-flex; align-items:center; gap:5px; color:{color}; font-weight:600; font-family:'JetBrains Mono', monospace; font-size:0.72rem;">
+                        <span class="pulse-indicator" style="background:{color}; box-shadow:0 0 5px {color};"></span>
+                        {val}
+                    </span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        st.markdown(
+            f"""
+            <div style="margin-top:1.5rem; padding-top:0.75rem; border-top:1px solid {COLOR_BORDER}; font-size:0.7rem; color:{COLOR_TEXT_MUTED};">
+                AI-SNIDS SOC Suite v2.0<br>
+                Model: RF-100 (CICIDS2017)
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         return page
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PAGE 1: SECURITY OVERVIEW
+# PAGE 1: OVERVIEW (Network Security Operations Center)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def page_security_overview():
-    st.markdown("# 🛡️ Security Overview")
-    st.markdown("*AI-SNIDS continuously monitors the virtual network for threats.*")
+def page_overview():
+    st.markdown(
+        f"""
+        <div style="margin-bottom: 1.25rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+                <h1 style="margin:0; font-size:1.6rem; font-weight:700;">AI-SNIDS</h1>
+                <span class="soc-badge" style="color:{COLOR_AI_PRIMARY}; background:rgba(56,189,248,0.1); border:1px solid rgba(56,189,248,0.3);">
+                    SOC PORTAL
+                </span>
+            </div>
+            <div style="color:{COLOR_TEXT_SECONDARY}; font-size:0.9rem; margin-top:0.25rem;">
+                Network Security Operations Center — AI-powered intrusion detection and response
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     stats = get_statistics()
     blocked_list = get_blocked_ips()
 
-    # Threat level
+    # Determine Network Security Posture
     if stats["threats_detected"] > 0 and len(blocked_list) > 0:
-        threat_status = "🔴 UNDER ATTACK"
+        net_status = "UNDER ATTACK"
+        status_color = SEV_HIGH
     elif stats["threats_detected"] > 0:
-        threat_status = "🟡 THREATS DETECTED"
+        net_status = "ELEVATED"
+        status_color = SEV_MED
     else:
-        threat_status = "🟢 SECURE"
+        net_status = "PROTECTED"
+        status_color = SEV_LOW
 
-    # KPI Cards
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("📦 Total Analyzed", f"{stats['total_samples']:,}")
-    col2.metric("🚨 Threats Detected", f"{stats['threats_detected']:,}")
-    col3.metric("🛑 Blocked Sources", f"{len(blocked_list)}")
-    col4.metric("🎯 Network Status", threat_status)
+    # 5 Universal KPI Cards
+    k1, k2, k3, k4, k5 = st.columns(5)
+    with k1:
+        st.markdown(render_metric_card("NETWORK STATUS", net_status, "Boundary Defense Active", status_color), unsafe_allow_html=True)
+    with k2:
+        st.markdown(render_metric_card("ACTIVE THREATS", f"{stats['threats_detected']:,}", f"High Risk: {stats['high_risk_threats']}", SEV_HIGH if stats['threats_detected'] > 0 else SEV_LOW), unsafe_allow_html=True)
+    with k3:
+        st.markdown(render_metric_card("BLOCKED SOURCES", f"{len(blocked_list)}", "Firewall Filter Active", SEV_CRITICAL if len(blocked_list) > 0 else SEV_LOW), unsafe_allow_html=True)
+    with k4:
+        st.markdown(render_metric_card("AI ENGINE", "ONLINE", "Random Forest (100 Trees)", COLOR_AI_PRIMARY), unsafe_allow_html=True)
+    with k5:
+        risk_label = "HIGH" if stats["high_risk_threats"] > 0 else ("MEDIUM" if stats["threats_detected"] > 0 else "LOW")
+        risk_color = SEV_HIGH if risk_label == "HIGH" else (SEV_MED if risk_label == "MEDIUM" else SEV_LOW)
+        st.markdown(render_metric_card("CURRENT RISK", risk_label, f"Detection: {stats['detection_rate']}", risk_color), unsafe_allow_html=True)
 
-    st.divider()
+    # Activity & Distribution Visualizations
+    chart_col1, chart_col2 = st.columns([3, 2])
 
-    col_left, col_right = st.columns([3, 2])
+    events = get_recent_events(150)
+    df = pd.DataFrame(events) if events else pd.DataFrame()
 
-    with col_left:
-        st.markdown("### 🚨 Active Alerts")
-        events = get_recent_events(50)
-        attack_events = [e for e in events if e["attack_type"] != "BENIGN"][:5]
+    with chart_col1:
+        st.markdown(render_section_header("Network Activity Timeline", "Sequential flow risk assessment & density", "Telemetry", "activity"), unsafe_allow_html=True)
+        if not df.empty and "risk_score" in df.columns:
+            df_timeline = df.copy().iloc[::-1].reset_index(drop=True)
+            df_timeline["flow_id"] = df_timeline.index + 1
 
-        if not attack_events:
-            st.markdown('<div class="benign-alert">✅ No active threats. Network is clean.</div>', unsafe_allow_html=True)
-        else:
-            for evt in attack_events:
-                risk_class = {"HIGH": "high", "MEDIUM": "medium", "LOW": "low"}.get(evt["risk_level"], "low")
-                src = evt.get("data_source", "")
-                label = f" [{src}]" if src else ""
-                st.markdown(
-                    f'<div class="{risk_class}-alert">'
-                    f'⚠ <b>{evt["attack_type"]}</b> | '
-                    f'{evt["source_ip"]} → {evt["destination_ip"]} | '
-                    f'Confidence: {evt["confidence"]*100:.1f}% | '
-                    f'Risk: {evt["risk_level"]} | '
-                    f'Action: {evt["action"]}{label}'
-                    f'</div>',
-                    unsafe_allow_html=True
+            fig_timeline = go.Figure()
+            fig_timeline.add_trace(
+                go.Scatter(
+                    x=df_timeline["flow_id"],
+                    y=df_timeline["risk_score"],
+                    mode="lines",
+                    name="Risk Score",
+                    line=dict(color=COLOR_AI_PRIMARY, width=2),
+                    fill="tozeroy",
+                    fillcolor="rgba(56, 189, 248, 0.08)",
                 )
-
-    with col_right:
-        st.markdown("### 🛑 Blocked Sources")
-        if blocked_list:
-            for b in blocked_list[:5]:
-                st.markdown(
-                    f'<div class="high-alert">'
-                    f'🚫 <b>{b["ip_address"]}</b><br>'
-                    f'Reason: {b["reason"]}<br>'
-                    f'Events: {b["event_count"]}'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
+            )
+            fig_timeline.add_hline(
+                y=0.7,
+                line_dash="dash",
+                line_color=SEV_HIGH,
+                annotation_text="High Threat Threshold (0.70)",
+                annotation_position="top right",
+                annotation_font=dict(size=10, color=SEV_HIGH),
+            )
+            layout = get_plotly_soc_layout(height=260)
+            layout["yaxis"]["range"] = [0, 1.05]
+            layout["xaxis"]["title"] = "Sequential Monitored Flows"
+            layout["yaxis"]["title"] = "Assessed Risk Score"
+            fig_timeline.update_layout(layout)
+            st.plotly_chart(fig_timeline, use_container_width=True)
         else:
-            st.markdown('<div class="benign-alert">✅ No blocked sources.</div>', unsafe_allow_html=True)
+            st.info("No network activity telemetry available. Execute a scenario to populate activity data.")
 
-    # ── How AI Detection Works in AI-SNIDS ────────────────────
-    st.divider()
-    st.markdown("## 🧠 How AI Detection Works in AI-SNIDS")
-    st.markdown(
-        "*End-to-end intelligent security architecture combining real/simulated network flow monitoring, "
-        "20-dimensional statistical feature extraction, 100-tree Random Forest ensemble classification, "
-        "and an explainable multi-factor risk assessment engine.*"
-    )
+    with chart_col2:
+        st.markdown(render_section_header("Threat Distribution", "Attack classifications across monitored flows", "Classification", "radar"), unsafe_allow_html=True)
+        if not df.empty and "attack_type" in df.columns:
+            counts = df["attack_type"].value_counts()
+            palette = [COLOR_AI_PRIMARY, COLOR_AI_SECONDARY, SEV_LOW, SEV_MED, SEV_HIGH, "#cbd5e1"]
+            fig_donut = px.pie(
+                values=counts.values,
+                names=counts.index,
+                hole=0.55,
+                color_discrete_sequence=palette,
+            )
+            layout_donut = get_plotly_soc_layout(height=260)
+            layout_donut["showlegend"] = True
+            fig_donut.update_layout(layout_donut)
+            fig_donut.update_traces(textinfo="percent+label", textfont=dict(size=10))
+            st.plotly_chart(fig_donut, use_container_width=True)
+        else:
+            st.info("No classification data available.")
 
-    # Interactive visual flow banner
+    # Recent Alerts & Network Health
+    bottom_col1, bottom_col2 = st.columns([3, 2])
+
+    with bottom_col1:
+        st.markdown(render_section_header("Recent Security Alerts", "Top priority threats flagged by Risk Engine", "Security Feeds", "alert-triangle"), unsafe_allow_html=True)
+        if not df.empty:
+            threat_df = df[df["attack_type"] != "BENIGN"].head(6)
+            if not threat_df.empty:
+                for _, alert in threat_df.iterrows():
+                    st.markdown(
+                        f"""
+                        <div class="soc-card" style="padding:0.75rem 1rem; margin-bottom:0.4rem; display:flex; align-items:center; justify-content:space-between;">
+                            <div style="display:flex; align-items:center; gap:0.75rem;">
+                                {render_severity_badge(alert['risk_level'])}
+                                <div>
+                                    <div style="font-weight:600; font-size:0.88rem; color:{COLOR_TEXT_PRIMARY};">
+                                        {alert['attack_type']} Detection
+                                    </div>
+                                    <div class="mono" style="font-size:0.75rem; color:{COLOR_TEXT_MUTED};">
+                                        {alert['source_ip']} ➔ {alert['destination_ip']}
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="font-size:0.75rem; font-weight:600; color:{COLOR_TEXT_PRIMARY};">
+                                    Conf: {alert['confidence']*100:.1f}%
+                                </div>
+                                <div style="font-size:0.7rem; color:{SEV_HIGH if alert['action'] == 'BLOCK' else SEV_MED}; font-weight:600;">
+                                    {alert['action']}
+                                </div>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+            else:
+                st.markdown(f'<div class="soc-card" style="color:{COLOR_TEXT_MUTED}; font-size:0.85rem;">No active threats detected in recent flow logs.</div>', unsafe_allow_html=True)
+        else:
+            st.info("No alert records available.")
+
+    with bottom_col2:
+        st.markdown(render_section_header("Network Infrastructure Health", "Component verification & defensive posture", "Diagnostics", "server"), unsafe_allow_html=True)
+        health_nodes = [
+            ("Gateway Router", "10.0.0.1", "Traffic Routing & Ingress Filter", "ONLINE", False),
+            ("Protected Node B", "10.0.0.100", "Critical Mission Server", "ONLINE", False),
+            ("Client Endpoint A", "10.0.0.10", "Authorized Encrypted Terminal", "ONLINE", False),
+            ("Attacker Node", "10.0.0.50", "Simulated Adversary Source", "BLOCKED" if any(b["ip_address"] == "10.0.0.50" for b in blocked_list) else "MONITORED", True),
+        ]
+        for name, ip, role, status, is_threat in health_nodes:
+            status_color = SEV_CRITICAL if status == "BLOCKED" else (SEV_LOW if status == "ONLINE" else SEV_MED)
+            st.markdown(
+                f"""
+                <div class="soc-card" style="padding:0.75rem 1rem; margin-bottom:0.4rem; display:flex; align-items:center; justify-content:space-between;">
+                    <div>
+                        <div style="font-weight:600; font-size:0.86rem; color:{COLOR_TEXT_PRIMARY};">{name}</div>
+                        <div class="mono" style="font-size:0.75rem; color:{COLOR_AI_PRIMARY if not is_threat else SEV_HIGH};">{ip} · {role}</div>
+                    </div>
+                    <div>
+                        <span class="soc-badge" style="color:{status_color}; background:rgba(255,255,255,0.04); border:1px solid {status_color}40;">
+                            {status}
+                        </span>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PAGE 2: LIVE MONITORING
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def page_live_monitoring():
     st.markdown(
-        """
-        <div class="pipeline-flow-banner">
-            🌐 <b>1. FLOW CAPTURE</b> ──▶ ⚙️ <b>2. FEATURE EXTRACTION</b> ──▶ 🌲 <b>3. RANDOM FOREST (100 TREES)</b> ──▶ ⚖️ <b>4. RISK ENGINE</b> ──▶ 🛡️ <b>5. ENFORCEMENT & BLOCK</b>
+        f"""
+        <div style="margin-bottom: 1.25rem;">
+            <h1 style="margin:0; font-size:1.6rem; font-weight:700;">Live Monitoring</h1>
+            <div style="color:{COLOR_TEXT_SECONDARY}; font-size:0.9rem; margin-top:0.25rem;">
+                Real-time traffic flow inspection, feature analysis, and automated AI prediction
+            </div>
         </div>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
-    # 5 Process Columns
-    pcol1, pcol2, pcol3, pcol4, pcol5 = st.columns(5)
+    # Filter Bar
+    filter_col1, filter_col2, filter_col3 = st.columns([1, 1.5, 1.5])
+    with filter_col1:
+        limit = st.selectbox("Record Limit", [25, 50, 100, 200], index=1)
+    with filter_col2:
+        source_filter = st.selectbox("Data Source", ["All Sources", "CICIDS2017 Benchmark", "SIMULATION Lab"])
+    with filter_col3:
+        threat_filter = st.selectbox("Threat Filter", ["All Traffic", "Threats Only", "Benign Only"])
 
-    with pcol1:
-        st.markdown(
-            """
-            <div class="pipeline-step-card">
-                <span class="pipeline-step-num">STEP 01</span>
-                <div style="font-size:1.6rem; margin-bottom:0.3rem;">🌐</div>
-                <div class="pipeline-step-title">Traffic Ingestion</div>
-                <div class="pipeline-step-desc">
-                    Continuously monitors bidirectional communication between <b>Client A (10.0.0.10)</b>, <b>Attacker (10.0.0.50)</b>, and <b>Server B (10.0.0.100)</b>, or streams real benchmark traces from <b>CICIDS2017</b>.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    events = get_recent_events(limit * 3)
+    if not events:
+        st.info("No live telemetry logged in database. Run a simulation in the Attack Lab to generate flow records.")
+        return
 
-    with pcol2:
-        st.markdown(
-            """
-            <div class="pipeline-step-card">
-                <span class="pipeline-step-num">STEP 02</span>
-                <div style="font-size:1.6rem; margin-bottom:0.3rem;">⚙️</div>
-                <div class="pipeline-step-title">Feature Extraction</div>
-                <div class="pipeline-step-desc">
-                    Extracts <b>20 statistical flow features</b> (Inter-Arrival Times, Flow Duration, Header Lengths, Byte Rates). Normalized via <code>StandardScaler</code> fitted strictly on training data.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    df = pd.DataFrame(events)
 
-    with pcol3:
-        st.markdown(
-            """
-            <div class="pipeline-step-card">
-                <span class="pipeline-step-num">STEP 03</span>
-                <div style="font-size:1.6rem; margin-bottom:0.3rem;">🌲</div>
-                <div class="pipeline-step-title">Random Forest ML</div>
-                <div class="pipeline-step-desc">
-                    An ensemble of <b>100 decision trees</b> trained on <b>93,832 CICIDS2017 records</b> votes across 5 categories: <code>BENIGN</code>, <code>PortScan</code>, <code>DoS</code>, <code>DDoS</code>, <code>BruteForce</code> (<b>98.55% accuracy</b>).
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    if source_filter == "CICIDS2017 Benchmark":
+        df = df[df["data_source"] == "CICIDS2017"]
+    elif source_filter == "SIMULATION Lab":
+        df = df[df["data_source"] == "SIMULATION"]
 
-    with pcol4:
-        st.markdown(
-            """
-            <div class="pipeline-step-card">
-                <span class="pipeline-step-num">STEP 04</span>
-                <div style="font-size:1.6rem; margin-bottom:0.3rem;">⚖️</div>
-                <div class="pipeline-step-title">Multi-Factor Risk</div>
-                <div class="pipeline-step-desc">
-                    Decouples AI confidence from security risk using composite weighting:<br>
-                    <code>0.4×Confidence + 0.4×Severity + 0.2×Intensity</code>.<br>
-                    Tiers: <b>MONITOR</b>, <b>LOW</b>, <b>MEDIUM</b>, <b>HIGH</b>.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    if threat_filter == "Threats Only":
+        df = df[df["attack_type"] != "BENIGN"]
+    elif threat_filter == "Benign Only":
+        df = df[df["attack_type"] == "BENIGN"]
 
-    with pcol5:
-        st.markdown(
-            """
-            <div class="pipeline-step-card">
-                <span class="pipeline-step-num">STEP 05</span>
-                <div style="font-size:1.6rem; margin-bottom:0.3rem;">🛡️</div>
-                <div class="pipeline-step-title">Enforcement & Defense</div>
-                <div class="pipeline-step-desc">
-                    Maps risk to response: <b>ALLOW</b> for benign traffic, <b>ALERT</b> for medium risk, and <b>BLOCK</b> for severe attacks by adding the attacker IP to SQLite <code>blocked_ips</code>, dropping future flows.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    df = df.head(limit)
 
-    # Expandable technical deep-dive panels
-    with st.expander("🔬 Deep Dive: The Risk Assessment Mathematics (Why AI Confidence ≠ Security Risk)"):
-        st.markdown(
-            """
-            **In traditional naive IDS systems, model confidence is mistakenly treated as security risk.**  
-            This leads to critical operational flaws:
-            - An attacker conducting a **Port Scan** with **98% confidence** is performing reconnaissance — threatening, but not causing service denial.
-            - A **DDoS attack** detected with **72% confidence** is an active resource exhaustion attack that can crash production services.
-
-            **AI-SNIDS solves this with a composite risk scoring equation:**
-            $$\\text{Risk Score} = (0.4 \\times \\text{Model Confidence}) + (0.4 \\times \\text{Attack Severity Weight}) + (0.2 \\times \\text{Traffic Intensity Bonus})$$
-
-            | Threat Type | Base Severity | Typical Confidence | Resulting Risk Level | Default System Action |
-            | :--- | :---: | :---: | :---: | :---: |
-            | **BENIGN (Normal)** | 0.0 | 95% – 100% | 🟢 **MONITOR** (Score < 0.20) | **ALLOW** |
-            | **PortScan** | 0.4 | 90% – 99% | 🟡 **MEDIUM** (Score 0.45 – 0.69) | **ALERT** |
-            | **BruteForce** | 0.5 | 90% – 100% | 🟡 **MEDIUM** (Score 0.45 – 0.69) | **ALERT** |
-            | **DoS (Single Source)** | 0.7 | 80% – 95% | 🟡 **MEDIUM / HIGH** | **ALERT / BLOCK** |
-            | **DDoS (Distributed)** | 0.8 | 90% – 100% | 🔴 **HIGH** (Score ≥ 0.70) | **BLOCK** |
-            """
-        )
-
-    with st.expander("📋 View the 20 Trained Network Traffic Features"):
-        fcol1, fcol2 = st.columns(2)
-        with fcol1:
-            st.markdown(
-                """
-                **Inter-Arrival Time (IAT) Features:**
-                - `Fwd IAT Total`: Total time between forward packets
-                - `Flow Duration`: Total duration of the network flow (microseconds)
-                - `Fwd IAT Max`: Maximum inter-arrival time in forward direction
-                - `Flow IAT Max`: Maximum inter-arrival time across entire flow
-                - `Fwd IAT Std` / `Flow IAT Std`: Standard deviation of packet intervals
-                - `Fwd IAT Mean` / `Fwd IAT Min`: Mean & minimum forward timing intervals
-                - `Bwd IAT Total` / `Max` / `Min` / `Std` / `Mean`: Reverse timing signals
-                """
-            )
-        with fcol2:
-            st.markdown(
-                """
-                **Payload & Transmission Metrics:**
-                - `Flow Bytes/s`: Transmission velocity (key for DoS/PortScan differentiation)
-                - `Fwd Header Length` / `Fwd Header Length.1`: Total forward header bytes
-                - `Idle Max` / `Idle Mean` / `Idle Min` / `Idle Std`: Inactive period statistics (distinguishes DoS pauses from active browsing)
-                
-                *All features are normalized using `StandardScaler` fitted on the 75,065 training samples without data leakage.*
-                """
-            )
-
-    with st.expander("🔒 How Cryptography & AI-SNIDS Work Together (Defense in Depth)"):
-        st.markdown(
-            """
-            AI-SNIDS combines **Machine Learning Detection** with **End-to-End Cryptographic Protection**:
-            1. **Confidentiality & Key Agreement:** Client A and Server B establish ephemeral session keys using **ECDH (NIST P-256)** and derive symmetric keys via **HKDF-SHA256**.
-            2. **Authenticated Encryption:** Data payloads are encrypted using **AES-256-GCM** with unique 96-bit nonces. Any tampering in transit triggers instantaneous authentication tag failure.
-            3. **Behavioral Monitoring:** Even if an attacker injects encrypted noise or attempts denial of service, **AI-SNIDS monitors flow dynamics** at the network boundary, detecting threats and enforcing simulated blocks.
-            """
-        )
-
-    # Attack Distribution
-    st.divider()
-    events = get_recent_events(200)
-    if events:
-        st.markdown("### 📊 Attack Distribution")
-        df = pd.DataFrame(events)
-        attack_counts = df["attack_type"].value_counts()
-        fig = px.pie(
-            values=attack_counts.values,
-            names=attack_counts.index,
-            color_discrete_sequence=px.colors.sequential.Blues_r,
-            hole=0.4,
-        )
-        fig.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            font_color="#e2e8f0",
-            margin=dict(t=20, b=20, l=20, r=20),
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# PAGE 2: VIRTUAL NETWORK
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def page_virtual_network():
-    st.markdown("# 🌐 Virtual Network")
-    st.markdown("*Software-only network topology for safe demonstration. No real traffic is generated.*")
-
-    # Main topology diagram
     st.markdown(
-        """
-        <div class="topology-box">
-                        ┌──────────────────────┐
-                        │      INTERNET        │
-                        └──────────┬───────────┘
-                                   │
-                             ┌─────▼─────┐
-                             │  ROUTER   │
-                             │ 10.0.0.1  │
-                             └─────┬─────┘
-                                   │
-                  ┌────────────────┼────────────────┐
-                  │                │                │
-            ┌─────▼─────┐   ┌─────▼─────┐   ┌─────▼─────┐
-            │ CLIENT A  │   │  ATTACKER  │   │ SERVER B  │
-            │ 10.0.0.10 │   │ 10.0.0.50 │   │10.0.0.100 │
-            └───────────┘   └───────────┘   └───────────┘
-                  │                                ▲
-                  │     Normal Traffic              │
-                  └────────────────────────────────┘
-                                   │
-                             ┌─────▼─────┐
-                             │ AI-SNIDS  │
-                             │ Detection │
-                             └─────┬─────┘
-                                   │
-                        ┌──────────▼──────────┐
-                        │ Risk + Alert Engine │
-                        └─────────────────────┘
+        f"""
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem; font-size:0.8rem; color:{COLOR_TEXT_SECONDARY};">
+            <span>Displaying <b>{len(df)}</b> monitored flows</span>
+            <span class="mono" style="color:{COLOR_AI_PRIMARY};">Table Auto-Sync Active</span>
         </div>
-        """, unsafe_allow_html=True
+        """,
+        unsafe_allow_html=True,
     )
 
-    st.divider()
+    # Clean, High-Density Table Display
+    display_cols = ["timestamp", "source_ip", "destination_ip", "protocol", "attack_type", "confidence", "risk_level", "action"]
+    existing_cols = [c for c in display_cols if c in df.columns]
+    table_df = df[existing_cols].copy()
 
-    # Device cards
-    st.markdown("### 📋 Network Devices")
+    if "timestamp" in table_df.columns:
+        table_df["timestamp"] = pd.to_datetime(table_df["timestamp"]).dt.strftime("%H:%M:%S.%f").str[:-3]
+    if "confidence" in table_df.columns:
+        table_df["confidence"] = table_df["confidence"].apply(lambda x: f"{float(x)*100:.1f}%")
 
-    col1, col2, col3, col4 = st.columns(4)
+    table_df.columns = [c.upper().replace("_", " ") for c in table_df.columns]
 
-    with col1:
-        st.markdown(
-            '<div class="device-card">'
-            '💻 <b>Client A</b><br>'
-            '<span style="color:#00E5FF;">10.0.0.10</span><br>'
-            '<small>Legitimate User</small><br>'
-            '🟢 ONLINE'
-            '</div>', unsafe_allow_html=True
-        )
-
-    with col2:
-        st.markdown(
-            '<div class="device-card">'
-            '🌐 <b>Router</b><br>'
-            '<span style="color:#00E5FF;">10.0.0.1</span><br>'
-            '<small>Network Gateway</small><br>'
-            '🟢 ONLINE'
-            '</div>', unsafe_allow_html=True
-        )
-
-    with col3:
-        blocked_list = get_blocked_ips()
-        attacker_blocked = any(b["ip_address"] == "10.0.0.50" for b in blocked_list)
-        atk_status = "🔴 BLOCKED" if attacker_blocked else "🟡 MONITORED"
-        st.markdown(
-            f'<div class="device-card">'
-            f'☠️ <b>Attacker</b><br>'
-            f'<span style="color:#fc8181;">10.0.0.50</span><br>'
-            f'<small>Simulated Threat</small><br>'
-            f'{atk_status}'
-            f'</div>', unsafe_allow_html=True
-        )
-
-    with col4:
-        st.markdown(
-            '<div class="device-card">'
-            '🖥️ <b>Server B</b><br>'
-            '<span style="color:#00E5FF;">10.0.0.100</span><br>'
-            '<small>Protected Target</small><br>'
-            '🟢 ONLINE'
-            '</div>', unsafe_allow_html=True
-        )
-
-    st.divider()
-
-    # Architecture explanation
-    st.markdown("### 🏗️ System Architecture")
-    st.markdown("""
-    | Component | Role | What it Does |
-    |-----------|------|-------------|
-    | **AI Model** (Random Forest) | DETECT | Classifies traffic as Normal or Attack |
-    | **Risk Engine** | ASSESS | Calculates severity score (confidence + attack weight + intensity) |
-    | **Response Engine** | RESPOND | Issues ALLOW / LOG / ALERT / BLOCK actions |
-    | **Cryptography** (ECDH + AES-GCM) | PROTECT DATA | Encrypts legitimate communication |
-    | **Database** (SQLite) | RECORD | Logs every event for audit |
-    | **Dashboard** (Streamlit) | VISUALIZE | Shows the entire process in real-time |
-    | **Simulator** | DEMONSTRATE | Generates safe synthetic traffic |
-    """)
-
-    st.markdown('<div class="sim-disclaimer">⚠️ This is a software simulation. No real network traffic, attacks, or firewall changes are involved.</div>', unsafe_allow_html=True)
+    st.dataframe(
+        table_df,
+        use_container_width=True,
+        hide_index=True,
+        height=450,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -949,150 +548,101 @@ def page_virtual_network():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def page_attack_lab():
-    st.markdown("# 🧪 Attack Scenario Lab")
-    st.markdown("*Run safe, synthetic attack scenarios through the real AI detection pipeline with dynamic mid-stream attack injection.*")
-    st.markdown('<div class="sim-disclaimer">⚠️ SIMULATION ONLY — No real attack traffic is generated. Everything stays inside the software.</div>', unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div style="margin-bottom: 1.25rem;">
+            <h1 style="margin:0; font-size:1.6rem; font-weight:700;">Attack Scenario Lab</h1>
+            <div style="color:{COLOR_TEXT_SECONDARY}; font-size:0.9rem; margin-top:0.25rem;">
+                Safely simulate abnormal network behavior and observe how AI-SNIDS detects and responds.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    from simulation.simulator import generate_simulation_batch, process_simulated_event, run_instant_attack_burst
+    # Integrated Virtual Network Topology Visual
+    st.markdown(render_section_header("Virtual Network Topology & Route Inspection", "Software-isolated network topology for safe demonstration", "Topology", "network"), unsafe_allow_html=True)
 
-    # ── Attack animation helper ────────────────────────────
-    attack_icons = {
-        "Normal Traffic": ("💻", "Sending normal traffic..."),
-        "Port Scan":      ("🔓", "Scanning ports..."),
-        "Brute Force":    ("🔨", "Brute forcing credentials..."),
-        "DoS":            ("💣", "Flooding server..."),
-        "DDoS":           ("💥", "Distributed attack in progress..."),
-        "Suspicious Traffic": ("👁️", "Probing network..."),
+    topo_col1, topo_col2, topo_col3, topo_col4 = st.columns(4)
+    blocked_list = get_blocked_ips()
+    attacker_blocked = any(b["ip_address"] == "10.0.0.50" for b in blocked_list)
+
+    with topo_col1:
+        st.markdown(render_network_node("Client A", "10.0.0.10", "Legitimate Workstation", "ONLINE", False), unsafe_allow_html=True)
+    with topo_col2:
+        st.markdown(render_network_node("Gateway Router", "10.0.0.1", "Network Gateway & IDS", "ONLINE", False), unsafe_allow_html=True)
+    with topo_col3:
+        st.markdown(render_network_node("Server B", "10.0.0.100", "Target Web/Data Server", "ONLINE", False), unsafe_allow_html=True)
+    with topo_col4:
+        st.markdown(render_network_node("Attacker Node", "10.0.0.50", "Threat Simulation Host", "BLOCKED" if attacker_blocked else "MONITORED", True), unsafe_allow_html=True)
+
+    st.markdown(
+        f"""
+        <div class="soc-card" style="padding:0.6rem 1rem; margin:0.5rem 0 1rem 0; font-size:0.75rem; text-align:center; color:{COLOR_TEXT_SECONDARY};">
+            <span class="mono" style="color:{COLOR_AI_PRIMARY}; font-weight:600;">NORMAL PATH:</span> Client A (10.0.0.10) ➔ Router (10.0.0.1) ➔ AI-SNIDS ➔ Server B (10.0.0.100)
+            &nbsp;|&nbsp;
+            <span class="mono" style="color:{SEV_HIGH}; font-weight:600;">ATTACK PATH:</span> Attacker (10.0.0.50) ➔ AI-SNIDS ➔ Threat Flagged ➔ Simulated Firewall Block
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Scenario Selection Cards
+    st.markdown(render_section_header("Simulation Scenarios", "Select baseline traffic pattern", "Scenario Catalog", "terminal"), unsafe_allow_html=True)
+
+    scenarios_meta = {
+        "Normal Traffic": ("Clean web browsing (HTTP/HTTPS) from Client A to Server B", "shield-check"),
+        "Port Scan": ("Systematic reconnaissance probing multi-port TCP/UDP services", "radar"),
+        "Brute Force": ("High-frequency credential stuffing targeting SSH/FTP ports", "lock"),
+        "DoS": ("Single-source high-volume packet flooding attempting resource denial", "activity"),
+        "DDoS": ("Distributed multi-node botnet swarm targeting Server B", "zap"),
+        "Suspicious Traffic": ("Ambiguous flow characteristics with statistical timing variance", "alert-triangle"),
     }
 
-    col_config, col_view = st.columns([1, 2])
+    selected_scenario = st.selectbox("Baseline Scenario", list(scenarios_meta.keys()), index=0)
 
-    with col_config:
-        st.markdown("### ⚙️ Scenario Configuration")
+    # Sudden Mid-Stream Attack Injection Controls
+    ctrl_col1, ctrl_col2, ctrl_col3, ctrl_col4 = st.columns(4)
 
-        scenario = st.selectbox(
-            "1️⃣ Initial Baseline Traffic",
-            ["Normal Traffic", "Port Scan", "Brute Force", "DoS", "DDoS", "Suspicious Traffic"],
-            index=0,
-            help="Traffic that starts the simulation."
-        )
-
+    with ctrl_col1:
         injected_attack = st.selectbox(
-            "2️⃣ ⚡ Sudden Mid-Stream Attack",
-            [
-                "None (Pure Scenario)",
-                "Port Scan",
-                "Brute Force",
-                "DoS",
-                "DDoS",
-                "Suspicious Traffic",
-            ],
-            index=1 if scenario == "Normal Traffic" else 0,
-            help="Simulate an attacker striking suddenly in the middle of ongoing traffic!"
+            "Sudden Mid-Stream Attack",
+            ["None (Pure Scenario)", "Port Scan", "DDoS", "DoS", "Brute Force", "Suspicious Traffic"],
+            index=1 if selected_scenario == "Normal Traffic" else 0,
+            help="Simulate sudden, unplanned attacks occurring in the middle of ongoing baseline traffic.",
         )
 
-        switch_ratio = 0.5
-        if injected_attack != "None (Pure Scenario)":
-            strike_point = st.select_slider(
-                "3️⃣ 🎯 Sudden Attack Strike Point",
-                options=["Early (30%)", "Midway (50%)", "Late (70%)"],
-                value="Midway (50%)",
-                help="When the sudden attack strikes during the traffic flow."
-            )
-            timing_map = {
-                "Early (30%)": 0.3,
-                "Midway (50%)": 0.5,
-                "Late (70%)": 0.7,
-            }
-            switch_ratio = timing_map.get(strike_point, 0.5)
-
-        intensity = st.select_slider(
-            "Intensity", options=["LOW", "MEDIUM", "HIGH"], value="MEDIUM"
+    with ctrl_col2:
+        strike_point_choice = st.selectbox(
+            "Sudden Attack Strike Point",
+            ["Midway (50% mark)", "Early (30% mark)", "Late (70% mark)"],
+            index=0,
         )
+        switch_ratio_map = {"Early (30% mark)": 0.3, "Midway (50% mark)": 0.5, "Late (70% mark)": 0.7}
+        switch_ratio = switch_ratio_map[strike_point_choice]
 
-        duration = st.radio(
-            "Duration (seconds)", options=[10, 30, 60], index=0, horizontal=True
-        )
+    with ctrl_col3:
+        intensity = st.selectbox("Traffic Intensity", ["LOW", "MEDIUM", "HIGH"], index=1)
 
-        start_btn = st.button("▶ START DYNAMIC SIMULATION", use_container_width=True, type="primary")
+    with ctrl_col4:
+        duration = st.slider("Duration (Seconds)", min_value=5, max_value=30, value=10, step=5)
 
-        # Scenario description
-        st.divider()
-        if injected_attack != "None (Pure Scenario)":
-            st.info(
-                f"**⚡ Dynamic Sudden Attack Scenario:**\n\n"
-                f"1. **Baseline Phase:** Starts with legitimate **{scenario}** (Client A → Server B).\n"
-                f"2. **Sudden Strike:** At **{int(switch_ratio*100)}%**, attacker suddenly strikes with **{injected_attack}**!\n"
-                f"3. **AI Response:** AI-SNIDS detects the transition in real time and triggers defense."
-            )
-        else:
-            descriptions = {
-                "Normal Traffic": "Client A (10.0.0.10) → Server B (10.0.0.100)\n\nLegitimate web browsing traffic. AI should classify as BENIGN.",
-                "Port Scan": "Attacker (10.0.0.50) → Server B (10.0.0.100)\n\nScanning ports 21, 22, 80, 443, etc. Reconnaissance behavior.",
-                "Brute Force": "Attacker (10.0.0.50) → Server B (10.0.0.100)\n\nRepeated SSH/FTP login attempts.",
-                "DoS": "Attacker (10.0.0.50) → Server B (10.0.0.100)\n\nSingle source floods target with requests.",
-                "DDoS": "Attackers (10.0.0.51–56) → Server B (10.0.0.100)\n\n6 distributed sources flood target simultaneously.",
-                "Suspicious Traffic": "Mixed sources → Server B (10.0.0.100)\n\nAmbiguous traffic that may confuse the model.",
-            }
-            st.info(descriptions.get(scenario, ""))
+    # Action Execution Button
+    start_simulation = st.button("EXECUTE SIMULATION SCENARIO", type="primary", use_container_width=True)
 
-    with col_view:
-        st.markdown("### 📊 Live Simulation View")
-        anim_area = st.empty()
-        status_box = st.empty()
-        progress_bar = st.empty()
-        metrics_area = st.empty()
-        live_chart = st.empty()
-        details_area = st.empty()
-
-        status_box.info("🔵 Ready. Configure above or click START SIMULATION (or use the Instant Attack Pad below).")
-
-    if start_btn:
+    # Simulation Execution Stream Area
+    if start_simulation:
         is_dynamic = (injected_attack != "None (Pure Scenario)")
-        effective_scenario = injected_attack if is_dynamic else scenario
-        icon, label = attack_icons.get(effective_scenario, ("⚡", "Running..."))
+        effective_scenario = injected_attack if is_dynamic else selected_scenario
 
-        # Initial animation state
-        if scenario == "Normal Traffic" and is_dynamic:
-            anim_area.markdown(
-                f'<div style="background:rgba(0,229,255,0.05); border:1px solid rgba(0,229,255,0.2); '
-                f'border-radius:14px; padding:1.5rem; text-align:center; animation: pulse-cyan 2s ease-in-out infinite;">'
-                f'<div style="font-size:3rem;">💻</div>'
-                f'<div style="color:#00E5FF; font-weight:600; font-size:1.1rem; margin-top:0.5rem;">'
-                f'Normal Baseline Traffic Flowing</div>'
-                f'<div style="color:rgba(255,255,255,0.6); font-size:0.85rem;">'
-                f'Client A (10.0.0.10) → Server B (10.0.0.100) | Standby for potential threats</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-        elif scenario != "Normal Traffic":
-            anim_area.markdown(
-                f'<div class="attack-anim">'
-                f'<div class="hacker-icon">{icon}</div>'
-                f'<div class="attack-text">⚡ ATTACK IN PROGRESS ⚡</div>'
-                f'<div class="attack-detail">{scenario.upper()} — {label}</div>'
-                f'<div class="attack-detail" style="margin-top:0.5rem;">'
-                f'Attacker → 10.0.0.100 (Server B)</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-        else:
-            anim_area.markdown(
-                f'<div style="background:rgba(0,229,255,0.05); border:1px solid rgba(0,229,255,0.2); '
-                f'border-radius:14px; padding:1.5rem; text-align:center; animation: pulse-cyan 2s ease-in-out infinite;">'
-                f'<div style="font-size:3rem;">💻</div>'
-                f'<div style="color:#00E5FF; font-weight:600; font-size:1.1rem; margin-top:0.5rem;">'
-                f'Normal Traffic Flowing</div>'
-                f'<div style="color:rgba(255,255,255,0.6); font-size:0.85rem;">'
-                f'Client A (10.0.0.10) → Server B (10.0.0.100)</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-
-        status_box.warning(f"⏳ Initializing simulation pipeline...")
+        anim_slot = st.empty()
+        status_slot = st.empty()
+        progress_slot = st.empty()
+        metrics_slot = st.empty()
+        chart_slot = st.empty()
 
         events_batch = generate_simulation_batch(
-            scenario_name=scenario,
+            scenario_name=selected_scenario,
             intensity=intensity,
             duration_sec=duration,
             injected_attack=injected_attack,
@@ -1100,639 +650,592 @@ def page_attack_lab():
         )
         total_events = len(events_batch)
 
-        status_box.info(f"🔄 Running: {total_events} flows | Baseline: {scenario} | Sudden Attack: {injected_attack}")
+        status_slot.markdown(
+            f'<div class="soc-card" style="color:{COLOR_AI_PRIMARY}; font-size:0.85rem; font-weight:600;">'
+            f'Generating {total_events} synthetic flow events | Baseline: {selected_scenario} | Injected: {injected_attack}'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
-        chart_data = []
-        threats_detected = 0
+        chart_records = []
+        threats_count = 0
         blocked_count = 0
-        sleep_interval = max(duration / total_events, 0.02) if total_events > 0 else 0
-        attack_switched_alerted = False
+        sleep_interval = max(duration / total_events, 0.02) if total_events > 0 else 0.05
 
-        for i, event in enumerate(events_batch):
+        for idx, event in enumerate(events_batch):
             result = process_simulated_event(event)
             db_event = result["db_event"]
             pred = result["prediction"]
 
-            is_attack = pred.get("predicted_class", "BENIGN") not in ("BENIGN",)
-            is_injected_phase = (event.get("simulation_phase") == "SUDDEN_ATTACK")
+            is_threat = (pred.get("predicted_class", "BENIGN") != "BENIGN")
+            is_injected = (event.get("simulation_phase") == "SUDDEN_ATTACK")
 
-            if is_attack:
-                threats_detected += 1
+            if is_threat:
+                threats_count += 1
             if result["was_blocked"]:
                 blocked_count += 1
 
-            # ── Dynamic Animation & Alert Switching ──────────
-            if is_injected_phase or (is_attack and scenario == "Normal Traffic"):
-                cur_target = injected_attack if is_dynamic else db_event.attack_type
-                cur_icon, cur_label = attack_icons.get(cur_target, ("⚡", "Attack in progress"))
-                anim_area.markdown(
-                    f'<div class="attack-anim">'
-                    f'<div class="hacker-icon">{cur_icon}</div>'
-                    f'<div class="attack-text">⚡ SUDDEN ATTACK INJECTED! ⚡</div>'
-                    f'<div class="attack-detail"><b>{db_event.attack_type.upper()}</b> STRIKE — {cur_label}</div>'
-                    f'<div class="attack-detail" style="margin-top:0.5rem;">'
-                    f'Attacker (<code>{db_event.source_ip}</code>) → Server B (<code>10.0.0.100</code>)</div>'
-                    f'</div>',
-                    unsafe_allow_html=True
+            # Dynamic Visual State Card
+            if is_injected or (is_threat and selected_scenario == "Normal Traffic"):
+                anim_slot.markdown(
+                    f"""
+                    <div class="soc-card" style="border-left: 4px solid {SEV_HIGH}; background: rgba(239, 68, 68, 0.06); padding: 1rem 1.25rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div style="display:flex; align-items:center; gap:0.5rem;">
+                                {get_icon("alert-triangle", size=20, color=SEV_HIGH)}
+                                <span style="font-weight:700; color:{SEV_HIGH}; font-size:0.95rem;">
+                                    SUDDEN ATTACK INTRUSION DETECTED
+                                </span>
+                            </div>
+                            {render_severity_badge(db_event.risk_level)}
+                        </div>
+                        <div style="margin-top:0.4rem; font-size:0.82rem; color:{COLOR_TEXT_PRIMARY};">
+                            Classified Threat: <b>{db_event.attack_type}</b> (Confidence: {db_event.confidence*100:.1f}%) | Action: <b style="color:{SEV_HIGH};">{db_event.action}</b>
+                        </div>
+                        <div class="mono" style="font-size:0.75rem; color:{COLOR_TEXT_MUTED}; margin-top:0.2rem;">
+                            Source IP: {db_event.source_ip} ➔ Target IP: {db_event.destination_ip}
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
                 )
-                status_box.error(
-                    f"🚨 Flow #{i+1}: ⚡ SUDDEN INTRUSION! {db_event.source_ip} → {db_event.attack_type} "
-                    f"| Conf: {db_event.confidence*100:.1f}% | Risk: {db_event.risk_level} | Action: {db_event.action}"
-                )
-            elif not is_attack:
-                anim_area.markdown(
-                    f'<div style="background:rgba(0,229,255,0.05); border:1px solid rgba(0,229,255,0.2); '
-                    f'border-radius:14px; padding:1.5rem; text-align:center; animation: pulse-cyan 2s ease-in-out infinite;">'
-                    f'<div style="font-size:3rem;">💻</div>'
-                    f'<div style="color:#00E5FF; font-weight:600; font-size:1.1rem; margin-top:0.5rem;">'
-                    f'Normal Baseline Traffic Flowing</div>'
-                    f'<div style="color:rgba(255,255,255,0.6); font-size:0.85rem;">'
-                    f'Client A (10.0.0.10) → Server B (10.0.0.100) | Network Status: Healthy</div>'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
-                status_box.info(
-                    f"🟢 Flow #{i+1}: Normal Traffic | AI: BENIGN ({db_event.confidence*100:.1f}%) | Risk: MONITOR | Action: ALLOW"
+            else:
+                anim_slot.markdown(
+                    f"""
+                    <div class="soc-card" style="border-left: 4px solid {SEV_LOW}; background: rgba(34, 197, 94, 0.04); padding: 1rem 1.25rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div style="display:flex; align-items:center; gap:0.5rem;">
+                                {get_icon("shield-check", size=20, color=SEV_LOW)}
+                                <span style="font-weight:600; color:{SEV_LOW}; font-size:0.95rem;">
+                                    BASELINE TRAFFIC FLOWING
+                                </span>
+                            </div>
+                            {render_severity_badge("BENIGN")}
+                        </div>
+                        <div style="margin-top:0.4rem; font-size:0.82rem; color:{COLOR_TEXT_PRIMARY};">
+                            Clean traffic stream: Client A (10.0.0.10) ➔ Server B (10.0.0.100) | Boundary Status: Normal
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
                 )
 
-            chart_data.append({
-                "flow": i + 1,
+            chart_records.append({
+                "flow": idx + 1,
                 "risk_score": db_event.risk_score,
-                "attack_type": db_event.attack_type,
-                "phase": "Attack" if is_attack else "Normal",
+                "phase": "Attack" if is_threat else "Normal",
             })
 
-            # Update progress
-            progress_bar.progress((i + 1) / total_events)
+            progress_slot.progress((idx + 1) / total_events)
 
-            with metrics_area.container():
-                mc1, mc2, mc3, mc4 = st.columns(4)
-                mc1.metric("Flows Analyzed", i + 1)
-                mc2.metric("Threats Detected", threats_detected)
-                mc3.metric("Blocked Sources", blocked_count)
-                mc4.metric("Latest Flow", db_event.attack_type)
+            with metrics_slot.container():
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Flows Inspected", idx + 1)
+                m2.metric("Threats Flagged", threats_count)
+                m3.metric("Sources Blocked", blocked_count)
+                m4.metric("Latest Prediction", db_event.attack_type)
 
-            # Live risk chart
-            df_chart = pd.DataFrame(chart_data)
-            fig = px.line(
-                df_chart, x="flow", y="risk_score",
+            df_live = pd.DataFrame(chart_records)
+            fig_live = px.line(
+                df_live,
+                x="flow",
+                y="risk_score",
                 color="phase",
-                color_discrete_map={"Normal": "#00E5FF", "Attack": "#fc8181"},
+                color_discrete_map={"Normal": COLOR_AI_PRIMARY, "Attack": SEV_HIGH},
                 labels={"flow": "Flow #", "risk_score": "Risk Score"},
             )
-            fig.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="#0f1623",
-                font_color="#e2e8f0",
-                yaxis=dict(range=[0, 1.05], gridcolor="#2d3748"),
-                xaxis=dict(gridcolor="#2d3748"),
-                margin=dict(t=10, b=20, l=20, r=20),
-                height=250,
-                showlegend=True,
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            )
-            fig.add_hline(y=0.7, line_dash="dash", line_color="#fc8181", annotation_text="HIGH RISK THRESHOLD")
-            live_chart.plotly_chart(fig, use_container_width=True)
+            layout_live = get_plotly_soc_layout(height=240)
+            layout_live["yaxis"]["range"] = [0, 1.05]
+            layout_live["yaxis"]["title"] = "Risk Score"
+            layout_live["xaxis"]["title"] = "Monitored Flow"
+            fig_live.update_layout(layout_live)
+            fig_live.add_hline(y=0.7, line_dash="dash", line_color=SEV_HIGH, annotation_text="High Threat (0.70)", annotation_position="top right", annotation_font=dict(size=10, color=SEV_HIGH))
+            chart_slot.plotly_chart(fig_live, use_container_width=True)
 
             time.sleep(sleep_interval)
 
-        # ── Simulation Complete — Show Result Banner ──────────
-        status_box.success(f"✅ Dynamic Simulation Complete — {total_events} flows analyzed.")
+        status_slot.markdown(
+            f'<div class="soc-card" style="border-left:4px solid {SEV_LOW}; color:{SEV_LOW}; font-weight:600; font-size:0.88rem;">'
+            f'Simulation Complete — {total_events} events processed and persisted to security audit database.'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
-        if threats_detected > 0:
-            anim_area.markdown(
-                f'<div class="result-danger">'
-                f'<div class="result-icon">🚨</div>'
-                f'<div class="result-title">⚠️ INTRUSION DETECTED & MITIGATED ⚠️</div>'
-                f'<div class="result-sub">'
-                f'{threats_detected} malicious flows detected — attacker isolated</div>'
-                f'<div class="result-sub" style="margin-top:0.5rem;">'
-                f'Scenario: <b>{scenario}</b> ➔ Injected Strike: <b>{injected_attack}</b> | See <b>Response Center</b> for details</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-        else:
-            anim_area.markdown(
-                '<div class="result-safe">'
-                '<div class="result-icon">✅</div>'
-                '<div class="result-title">🟢 NETWORK IS SAFE — GOOD TO GO!</div>'
-                '<div class="result-sub">All traffic classified as normal. No threats detected.</div>'
-                '<div class="result-sub" style="margin-top:0.5rem;">'
-                'AI-SNIDS is monitoring. Network operations can continue safely.</div>'
-                '</div>',
-                unsafe_allow_html=True
-            )
-
-        with details_area.container():
-            st.markdown("### 📋 Dynamic Simulation Summary")
-            scol1, scol2, scol3 = st.columns(3)
-            scol1.metric("Total Flows", total_events)
-            scol2.metric("Threats Flagged", threats_detected)
-            scol3.metric("Sources Blocked", blocked_count)
-
-    # ═══════════════════════════════════════════════════════════════
-    # REAL-TIME INSTANT ATTACK INJECTION PAD
-    # ═══════════════════════════════════════════════════════════════
-    st.divider()
-    st.markdown("### ⚡ Real-Time Instant Attack Injection Pad")
-    st.markdown(
-        "*Simulate sudden, unplanned attacks on demand! "
-        "Click any button below to instantly strike the virtual network mid-operation:* "
-    )
+    # Real-Time Instant Attack Strike Pad
+    st.markdown(f'<div style="margin: 1.5rem 0 1rem 0; border-top: 1px solid {COLOR_BORDER};"></div>', unsafe_allow_html=True)
+    st.markdown(render_section_header("Instant Attack Injection Pad", "On-demand attack burst trigger without timed wait", "Manual Interventions", "zap"), unsafe_allow_html=True)
 
     pad_col1, pad_col2, pad_col3, pad_col4, pad_col5 = st.columns(5)
 
-    def _handle_instant_strike(attack_name: str, friendly_label: str, is_attack: bool = True):
-        burst_results = run_instant_attack_burst(attack_name, count=6, intensity="HIGH")
-        latest = burst_results[-1]
-        db_e = latest["db_event"]
+    def _trigger_instant_burst(attack_type: str, is_attack: bool = True):
+        burst = run_instant_attack_burst(attack_type, count=6, intensity="HIGH")
+        latest = burst[-1]["db_event"]
         if is_attack:
             st.error(
-                f"💥 **SUDDEN {friendly_label.upper()} STRIKE INJECTED!** "
-                f"AI-SNIDS detected {db_e.attack_type} with {db_e.confidence*100:.1f}% confidence. "
-                f"Risk: **{db_e.risk_level}** | Action: **{db_e.action}** | Attacker IP: `{db_e.source_ip}`."
+                f"SUDDEN {attack_type.upper()} STRIKE INJECTED: "
+                f"AI-SNIDS flagged {latest.attack_type} ({latest.confidence*100:.1f}% confidence) | "
+                f"Risk: {latest.risk_level} | Action: {latest.action} | Attacker: {latest.source_ip}"
             )
         else:
             st.success(
-                f"🟢 **NORMAL TRAFFIC INJECTED!** Client A (10.0.0.10) → Server B (10.0.0.100). "
-                f"AI-SNIDS classified as **BENIGN** with {db_e.confidence*100:.1f}% confidence (Action: ALLOW)."
+                f"CLEAN FLOW INJECTED: "
+                f"Client A (10.0.0.10) ➔ Server B (10.0.0.100) classified as BENIGN (Action: ALLOW)"
             )
 
     with pad_col1:
-        if st.button("🔓 Sudden Port Scan", use_container_width=True, help="Attacker 10.0.0.50 suddenly probes ports"):
-            _handle_instant_strike("Port Scan", "Port Scan")
-
+        if st.button("Sudden Port Scan", use_container_width=True, help="Attacker probes ports 21, 22, 80, 443"):
+            _trigger_instant_burst("Port Scan")
     with pad_col2:
-        if st.button("💥 Sudden DDoS Swarm", use_container_width=True, help="Distributed botnet 10.0.0.51-56 suddenly floods server"):
-            _handle_instant_strike("DDoS", "DDoS Swarm")
-
+        if st.button("Sudden DDoS Swarm", use_container_width=True, help="Botnet nodes flood Server B"):
+            _trigger_instant_burst("DDoS")
     with pad_col3:
-        if st.button("💣 Sudden DoS Flood", use_container_width=True, help="Attacker 10.0.0.50 suddenly sends high packet rate flood"):
-            _handle_instant_strike("DoS", "DoS Flood")
-
+        if st.button("Sudden DoS Flood", use_container_width=True, help="Single-source packet flood"):
+            _trigger_instant_burst("DoS")
     with pad_col4:
-        if st.button("🔨 Sudden Brute Force", use_container_width=True, help="Attacker 10.0.0.50 suddenly attacks SSH/FTP ports"):
-            _handle_instant_strike("Brute Force", "Brute Force")
-
+        if st.button("Sudden Brute Force", use_container_width=True, help="SSH/FTP repeated login abuse"):
+            _trigger_instant_burst("Brute Force")
     with pad_col5:
-        if st.button("💻 Send Normal Flow", use_container_width=True, help="Client A 10.0.0.10 sends clean web traffic"):
-            _handle_instant_strike("Normal Traffic", "Normal Traffic", is_attack=False)
-
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# PAGE 4: LIVE TRAFFIC MONITOR
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def page_live_traffic():
-    st.markdown("# 📡 Live Traffic Monitor")
-    st.markdown("*All analyzed traffic samples with AI detection results.*")
-
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        limit = st.selectbox("Show last", [20, 50, 100, 200], index=1)
-    with col2:
-        source_filter = st.radio("Data Source", ["All", "CICIDS2017", "SIMULATION"], horizontal=True)
-
-    events = get_recent_events(limit * 3)
-
-    if not events:
-        st.info("No events recorded yet. Run a simulation or analyze traffic samples first.")
-        return
-
-    df = pd.DataFrame(events)
-
-    if source_filter != "All" and "data_source" in df.columns:
-        df = df[df["data_source"] == source_filter]
-
-    df = df.head(limit)
-
-    if df.empty:
-        st.info(f"No events found for: {source_filter}")
-        return
-
-    # Format display
-    risk_icons = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🔵", "MONITOR": "🟢"}
-    df_display = df.copy()
-    df_display["risk_level"] = df_display["risk_level"].apply(lambda r: f"{risk_icons.get(r, '')} {r}")
-    df_display["confidence"] = df_display["confidence"].apply(lambda v: f"{v*100:.1f}%")
-
-    display_cols = [
-        "timestamp", "source_ip", "destination_ip", "protocol",
-        "attack_type", "confidence", "risk_level", "action", "data_source"
-    ]
-    cols_present = [c for c in display_cols if c in df_display.columns]
-    df_show = df_display[cols_present].copy()
-    df_show.columns = [c.replace("_", " ").title() for c in df_show.columns]
-
-    st.dataframe(df_show, use_container_width=True, hide_index=True)
-
-    csv = df.to_csv(index=False)
-    st.download_button(
-        "📥 Download Event Log (CSV)",
-        data=csv, file_name="ai_snids_events.csv", mime="text/csv",
-    )
+        if st.button("Send Normal Flow", use_container_width=True, help="Client A clean encrypted web browsing"):
+            _trigger_instant_burst("Normal Traffic", is_attack=False)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PAGE 5: THREAT CENTER
+# PAGE 4: THREAT CENTER
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def page_threat_center():
-    st.markdown("# 🚨 Threat Center")
-    st.markdown("*Only attack events — filtered from all traffic analysis.*")
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        attack_filter = st.selectbox(
-            "Attack Type",
-            ["All", "DoS", "DDoS", "PortScan", "BruteForce", "Botnet", "BLOCKED"]
-        )
-    with col2:
-        risk_filter = st.selectbox("Risk Level", ["All", "HIGH", "MEDIUM", "LOW"])
-    with col3:
-        source_filter = st.radio("Source", ["All", "CICIDS2017", "SIMULATION"], horizontal=True)
-
-    events = get_recent_events(500)
-    if not events:
-        st.info("No events yet.")
-        return
-
-    df = pd.DataFrame(events)
-
-    # Filter to attacks only
-    df = df[df["attack_type"] != "BENIGN"]
-
-    if attack_filter != "All":
-        df = df[df["attack_type"] == attack_filter]
-    if risk_filter != "All":
-        df = df[df["risk_level"] == risk_filter]
-    if source_filter != "All" and "data_source" in df.columns:
-        df = df[df["data_source"] == source_filter]
-
-    if df.empty:
-        st.info("No threats matching filters.")
-        return
-
-    st.metric("Threats Matching Filters", len(df))
-
-    # Show threat cards for top 5
-    for _, row in df.head(5).iterrows():
-        risk_class = {"HIGH": "high", "MEDIUM": "medium", "LOW": "low"}.get(row.get("risk_level", ""), "low")
-        src = row.get("data_source", "")
-        st.markdown(
-            f'<div class="{risk_class}-alert">'
-            f'⚠ <b>{row["attack_type"]}</b> | '
-            f'{row["source_ip"]} → {row["destination_ip"]} | '
-            f'Confidence: {row["confidence"]*100:.1f}% | '
-            f'Risk: {row["risk_level"]} | '
-            f'Action: {row["action"]} | '
-            f'Source: {src}'
-            f'</div>',
-            unsafe_allow_html=True
-        )
-
-    st.divider()
-
-    # Full table
-    st.markdown("### 📋 All Threats")
-    risk_icons = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🔵"}
-    df_display = df.copy()
-    df_display["risk_level"] = df_display["risk_level"].apply(lambda r: f"{risk_icons.get(r, '')} {r}")
-    df_display["confidence"] = df_display["confidence"].apply(lambda v: f"{v*100:.1f}%")
-
-    display_cols = ["timestamp", "source_ip", "destination_ip", "attack_type", "confidence", "risk_level", "action", "data_source"]
-    cols_present = [c for c in display_cols if c in df_display.columns]
-    st.dataframe(df_display[cols_present].head(50), use_container_width=True, hide_index=True)
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# PAGE 6: RESPONSE CENTER
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def page_response_center():
-    st.markdown("# 🛑 Response Center")
-    st.markdown("*Application-level simulated defense — blocked sources and response actions.*")
-
     st.markdown(
-        '<div class="sim-disclaimer">'
-        '⚠️ <b>APPLICATION-LEVEL SIMULATION</b> — This is NOT an OS firewall. '
-        'Blocking is enforced only within the AI-SNIDS application. '
-        'No iptables, nftables, or system-level rules are modified.'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
-    st.divider()
-
-    # How blocking works
-    st.markdown("### 🔄 How Simulated Blocking Works")
-    st.markdown(
-        """
-        <div class="topology-box" style="font-size: 0.8rem;">
-BEFORE DETECTION:                    AFTER DETECTION:
-
-Attacker                             AI-SNIDS
-10.0.0.50                               │
-    │                                Threat Detected
-    ▼                                    │
-Server B                             10.0.0.50 added to
-10.0.0.100                           simulated blocklist
-                                         │
-                                    Future flows from
-                                    10.0.0.50 → BLOCKED
+        f"""
+        <div style="margin-bottom: 1.25rem;">
+            <h1 style="margin:0; font-size:1.6rem; font-weight:700;">Threat Center</h1>
+            <div style="color:{COLOR_TEXT_SECONDARY}; font-size:0.9rem; margin-top:0.25rem;">
+                Threat detection registry, incident investigation console, and automated defense enforcement
+            </div>
         </div>
-        """, unsafe_allow_html=True
+        """,
+        unsafe_allow_html=True,
     )
 
-    st.divider()
+    stats = get_statistics()
+    blocked_list = get_blocked_ips()
 
-    # Blocked IPs table
-    st.markdown("### 🚫 Simulated Blocklist")
-    blocked = get_blocked_ips()
+    # Top KPI Metrics
+    tc1, tc2, tc3 = st.columns(3)
+    with tc1:
+        st.markdown(render_metric_card("ACTIVE THREATS", f"{stats['threats_detected']:,}", "Logged Malicious Flows", SEV_HIGH), unsafe_allow_html=True)
+    with tc2:
+        st.markdown(render_metric_card("HIGH RISK INCIDENTS", f"{stats['high_risk_threats']:,}", "Composite Score >= 0.70", SEV_CRITICAL), unsafe_allow_html=True)
+    with tc3:
+        st.markdown(render_metric_card("BLOCKED SOURCES", f"{len(blocked_list)}", "Active Simulated Firewall Entries", SEV_CRITICAL if len(blocked_list) > 0 else SEV_LOW), unsafe_allow_html=True)
 
-    if not blocked:
-        st.markdown('<div class="benign-alert">✅ No sources currently blocked. Run an attack simulation to see blocking in action.</div>', unsafe_allow_html=True)
-    else:
-        for b in blocked:
+    # Filter Controls
+    f_col1, f_col2, f_col3 = st.columns(3)
+    with f_col1:
+        type_filter = st.selectbox("Threat Classification", ["All Threat Types", "PortScan", "DoS", "DDoS", "BruteForce"])
+    with f_col2:
+        risk_filter = st.selectbox("Severity Level", ["All Severities", "CRITICAL", "HIGH", "MEDIUM", "LOW"])
+    with f_col3:
+        source_filter = st.selectbox("Data Origin", ["All Origins", "CICIDS2017 Benchmark", "SIMULATION Lab"])
+
+    events = get_recent_events(150)
+    threat_events = [e for e in events if e["attack_type"] != "BENIGN"]
+
+    if not threat_events:
+        st.info("No threat incidents currently recorded. Execute attack simulations in the Attack Lab to populate.")
+        return
+
+    df_threats = pd.DataFrame(threat_events)
+
+    if type_filter != "All Threat Types":
+        df_threats = df_threats[df_threats["attack_type"].str.contains(type_filter, case=False, na=False)]
+    if risk_filter != "All Severities":
+        df_threats = df_threats[df_threats["risk_level"] == risk_filter]
+    if source_filter == "CICIDS2017 Benchmark":
+        df_threats = df_threats[df_threats["data_source"] == "CICIDS2017"]
+    elif source_filter == "SIMULATION Lab":
+        df_threats = df_threats[df_threats["data_source"] == "SIMULATION"]
+
+    if df_threats.empty:
+        st.info("No threat records match the current filter selection.")
+        return
+
+    # Incident Selection & Table
+    incident_col, detail_col = st.columns([3, 2])
+
+    with incident_col:
+        st.markdown(render_section_header("Incident Registry", "Click an incident to investigate", "Registry", "alert-triangle"), unsafe_allow_html=True)
+        incident_options = [
+            f"ID #{row['id']} | {row['attack_type']} ({row['source_ip']}) — Risk: {row['risk_level']}"
+            for _, row in df_threats.head(25).iterrows()
+        ]
+        selected_option = st.selectbox("Select Incident for Detailed SOC Investigation", incident_options)
+        selected_id = int(selected_option.split("|")[0].replace("ID #", "").strip())
+
+        display_df = df_threats[["id", "timestamp", "attack_type", "source_ip", "confidence", "risk_level", "action"]].head(25).copy()
+        display_df["confidence"] = display_df["confidence"].apply(lambda x: f"{float(x)*100:.1f}%")
+        display_df.columns = ["ID", "TIME", "THREAT", "SOURCE", "CONFIDENCE", "RISK", "ACTION"]
+        st.dataframe(display_df, use_container_width=True, hide_index=True, height=350)
+
+    # Detailed SOC Investigation Panel
+    selected_event = next((e for e in threat_events if e["id"] == selected_id), threat_events[0])
+    is_curr_blocked = any(b["ip_address"] == selected_event["source_ip"] for b in blocked_list)
+
+    with detail_col:
+        st.markdown(render_section_header("Incident Investigation Panel", "Detailed telemetry and response actions", "Triage", "shield"), unsafe_allow_html=True)
+        st.markdown(
+            f"""
+            <div class="soc-card" style="border-top:2px solid {SEV_HIGH};">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                    <span style="font-weight:700; font-size:1.05rem; color:{COLOR_TEXT_PRIMARY};">
+                        {selected_event['attack_type']}
+                    </span>
+                    {render_severity_badge(selected_event['risk_level'])}
+                </div>
+                <div style="font-size:0.8rem; color:{COLOR_TEXT_SECONDARY}; line-height:1.7;">
+                    <div><b>Incident ID:</b> <span class="mono">#{selected_event['id']}</span></div>
+                    <div><b>Timestamp:</b> <span class="mono">{selected_event['timestamp']}</span></div>
+                    <div><b>Source IP:</b> <span class="mono" style="color:{COLOR_AI_PRIMARY};">{selected_event['source_ip']}</span></div>
+                    <div><b>Destination IP:</b> <span class="mono">{selected_event['destination_ip']}</span></div>
+                    <div><b>AI Confidence:</b> <span class="mono">{selected_event['confidence']*100:.1f}%</span></div>
+                    <div><b>Composite Risk Score:</b> <span class="mono">{selected_event['risk_score']}</span></div>
+                    <div><b>Enforced Action:</b> <span class="mono" style="color:{SEV_HIGH if selected_event['action'] == 'BLOCK' else SEV_MED}; font-weight:600;">{selected_event['action']}</span></div>
+                    <div><b>Telemetry Origin:</b> <span class="mono">{selected_event['data_source']}</span></div>
+                </div>
+                <div style="margin-top:1rem; padding-top:0.75rem; border-top:1px solid {COLOR_BORDER};">
+                    <div style="font-size:0.75rem; color:{COLOR_TEXT_MUTED}; margin-bottom:0.5rem;">
+                        Firewall Status: <b style="color:{SEV_CRITICAL if is_curr_blocked else SEV_LOW};">{'ACTIVELY BLOCKED' if is_curr_blocked else 'UNRESTRICTED'}</b>
+                    </div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # Interactive Simulated Firewall Defense Toggle
+        if is_curr_blocked:
+            if st.button(f"Unblock Source IP ({selected_event['source_ip']})", use_container_width=True):
+                if toggle_ip_block(selected_event["source_ip"], block=False):
+                    st.success(f"IP {selected_event['source_ip']} removed from firewall blocklist.")
+                    st.rerun()
+        else:
+            if st.button(f"Enforce Simulated Firewall Block ({selected_event['source_ip']})", type="primary", use_container_width=True):
+                if toggle_ip_block(selected_event["source_ip"], block=True, reason=f"SOC Analyst block: {selected_event['attack_type']}"):
+                    st.warning(f"IP {selected_event['source_ip']} added to firewall blocklist.")
+                    st.rerun()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PAGE 5: SECURE COMMUNICATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def page_secure_communication():
+    st.markdown(
+        f"""
+        <div style="margin-bottom: 1.25rem;">
+            <h1 style="margin:0; font-size:1.6rem; font-weight:700;">Secure Communication</h1>
+            <div style="color:{COLOR_TEXT_SECONDARY}; font-size:0.9rem; margin-top:0.25rem;">
+                End-to-end cryptographic protection, key derivation, and tamper detection between Client A and Server B
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Visual Cryptographic Pipeline
+    st.markdown(render_section_header("Cryptographic Architecture Pipeline", "Sequential authenticated encryption handshake", "Cryptographic Core", "lock"), unsafe_allow_html=True)
+
+    pipe_col1, pipe_col2, pipe_col3, pipe_col4, pipe_col5 = st.columns(5)
+    steps = [
+        ("01", "Client A", "Initiates secure channel request", "user"),
+        ("02", "ECDH P-256", "Ephemeral Diffie-Hellman key exchange", "lock"),
+        ("03", "HKDF-SHA256", "Extract & expand key derivation (RFC 5869)", "cpu"),
+        ("04", "AES-256-GCM", "Authenticated encryption + 128-bit tag", "shield-check"),
+        ("05", "Server B", "Authenticates tag & decrypts ciphertext", "server"),
+    ]
+    cols = [pipe_col1, pipe_col2, pipe_col3, pipe_col4, pipe_col5]
+
+    for col, (num, title, desc, icon) in zip(cols, steps):
+        with col:
             st.markdown(
-                f'<div class="high-alert">'
-                f'🚫 <b>IP: {b["ip_address"]}</b><br>'
-                f'<b>Reason:</b> {b["reason"]}<br>'
-                f'<b>Blocked At:</b> {b["blocked_at"][:19] if b["blocked_at"] else "N/A"}<br>'
-                f'<b>Event Count:</b> {b["event_count"]}<br>'
-                f'<b>Status:</b> {"🔴 ACTIVE" if b["is_active"] else "🟢 Released"}'
-                f'</div>',
-                unsafe_allow_html=True
+                f"""
+                <div class="soc-card" style="padding:0.9rem; text-align:center;">
+                    <div style="font-size:0.65rem; font-weight:700; color:{COLOR_AI_PRIMARY}; letter-spacing:0.06em; margin-bottom:0.25rem;">
+                        STEP {num}
+                    </div>
+                    <div style="display:flex; justify-content:center; margin-bottom:0.3rem;">
+                        {get_icon(icon, size=18, color=COLOR_AI_PRIMARY)}
+                    </div>
+                    <div style="font-weight:600; font-size:0.85rem; color:{COLOR_TEXT_PRIMARY};">{title}</div>
+                    <div style="font-size:0.7rem; color:{COLOR_TEXT_MUTED}; margin-top:0.2rem;">{desc}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
 
-    st.divider()
+    # Live Interactive Cryptographic Operations
+    st.markdown(render_section_header("Interactive Cryptographic Verification", "Execute live key agreement, encryption, and tamper testing", "Verification", "terminal"), unsafe_allow_html=True)
 
-    # Response actions legend
-    st.markdown("### 📖 Response Action Reference")
-    st.markdown("""
-    | Action | Meaning | Trigger |
-    |--------|---------|---------|
-    | **ALLOW** | Traffic permitted | BENIGN / MONITOR risk |
-    | **LOG** | Traffic logged for review | LOW risk |
-    | **ALERT** | Security alert raised | MEDIUM risk |
-    | **BLOCK** | Source added to simulated blocklist | HIGH risk |
-    """)
+    input_msg = st.text_input("Plaintext Payload (Client A ➔ Server B)", value="Critical system operational telemetry payload")
 
+    action_col1, action_col2 = st.columns(2)
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# PAGE 7: CRYPTO LAB
-# ═══════════════════════════════════════════════════════════════════════════════
+    with action_col1:
+        run_crypto = st.button("EXECUTE ENCRYPT & VERIFY DECRYPT", type="primary", use_container_width=True)
 
-def page_crypto_lab():
-    st.markdown("# 🔐 Crypto Lab")
-    st.markdown(
-        "*Cryptography protects legitimate communication between Client A and Server B. "
-        "AI detects threats — Crypto prevents eavesdropping and tampering.*"
-    )
+    with action_col2:
+        run_tamper = st.button("EXECUTE TAMPER DETECTION TEST", use_container_width=True)
 
-    # Story context
-    st.markdown(
-        '<div class="topology-box" style="font-size: 0.8rem;">'
-        'Client A (10.0.0.10)           Server B (10.0.0.100)\n'
-        '       │                              ▲\n'
-        '       │  ECDH Key Exchange            │\n'
-        '       │  ──────────────────────────── │\n'
-        '       │                              │\n'
-        '       │  Shared Secret (HKDF)        │\n'
-        '       │  ──────────────────────────── │\n'
-        '       │                              │\n'
-        '       │  AES-256-GCM Encrypted Data  │\n'
-        '       └──────────────────────────────┘\n'
-        '                     │\n'
-        '              [ AI-SNIDS ]\n'
-        '         (monitors flow, not payload)'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
-    st.divider()
-
-    # CIA Triad
-    st.markdown("### 🔒 CIA Triad in This System")
-    c1, c2, c3 = st.columns(3)
-    c1.success("**C — Confidentiality**\nAES-256-GCM ensures ciphertext reveals nothing about plaintext")
-    c2.warning("**I — Integrity**\nGCM auth tag (128-bit) detects ANY modification")
-    c3.info("**A — Availability**\nAI-based intrusion detection prevents service disruption")
-
-    st.divider()
-
-    # Full Crypto Demo Button
-    st.markdown("### 🚀 Run Complete Crypto Demo")
-    st.markdown("*Demonstrates the full flow: Key Exchange → Encrypt → Decrypt → Tamper Detection*")
-
-    message = st.text_input("Message from Client A to Server B", value="Student project data")
-
-    if st.button("🔐 RUN CRYPTO DEMO", type="primary", use_container_width=True):
+    if run_crypto or run_tamper:
         from crypto.key_exchange import ECDHParty
         from crypto.encryption import encrypt, decrypt, tamper_ciphertext
 
-        with st.spinner("Running cryptographic operations..."):
+        client = ECDHParty("Client-A")
+        server = ECDHParty("Server-B")
 
-            # Step 1: Key Exchange
-            st.markdown("---")
-            st.markdown("### 🔑 Step 1: ECDH Key Exchange")
+        client.load_peer_public_key(server.get_public_key_bytes())
+        server.load_peer_public_key(client.get_public_key_bytes())
 
-            client = ECDHParty("Client-A")
-            server = ECDHParty("Server-B")
+        client_key = client.derive_aes_key()
+        server_key = server.derive_aes_key()
+        keys_match = (client_key == server_key)
 
-            client.load_peer_public_key(server.get_public_key_bytes())
-            server.load_peer_public_key(client.get_public_key_bytes())
+        enc_result = encrypt(client_key, input_msg)
 
-            client_key = client.derive_aes_key()
-            server_key = server.derive_aes_key()
-            keys_match = client_key == server_key
+        if run_crypto:
+            dec_result = decrypt(server_key, enc_result["ciphertext"], enc_result["nonce"])
 
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown("**Client A's Public Key (P-256)**")
-                st.markdown(f'<div class="crypto-box">{client.get_public_key_hex()[:80]}...</div>', unsafe_allow_html=True)
-            with col2:
-                st.markdown("**Server B's Public Key (P-256)**")
-                st.markdown(f'<div class="crypto-box">{server.get_public_key_hex()[:80]}...</div>', unsafe_allow_html=True)
+            st.markdown(
+                f"""
+                <div class="soc-card" style="border-left:4px solid {SEV_LOW}; margin-top:1rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:600; color:{SEV_LOW}; font-size:0.95rem;">
+                            CRYPTOGRAPHIC CHANNEL VERIFIED
+                        </span>
+                        {render_severity_badge("ALLOW")}
+                    </div>
+                    <div style="margin-top:0.6rem; font-size:0.82rem; color:{COLOR_TEXT_PRIMARY};">
+                        Key Agreement: <b>{client.curve_name}</b> | Derived Key Match: <b>{'YES' if keys_match else 'NO'}</b>
+                    </div>
+                    <div style="font-size:0.82rem; color:{COLOR_TEXT_PRIMARY}; margin-top:0.25rem;">
+                        Decrypted Output: <b style="color:{COLOR_AI_PRIMARY}; font-family:'JetBrains Mono', monospace;">{dec_result['plaintext']}</b>
+                    </div>
+                    <div style="font-size:0.75rem; color:{COLOR_TEXT_MUTED}; margin-top:0.4rem;">
+                        Integrity Verified: Authenticated encryption tag matched successfully. Confidentiality guaranteed.
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
-            st.markdown("**Derived AES-256 Key (first 16 bytes shown)**")
-            kc1, kc2, kc3 = st.columns(3)
-            kc1.markdown(f'<div class="crypto-box">Client A: {client_key[:16].hex()}</div>', unsafe_allow_html=True)
-            kc2.markdown(f'<div class="crypto-box">Server B: {server_key[:16].hex()}</div>', unsafe_allow_html=True)
-            if keys_match:
-                kc3.success("✅ Keys Match!\nShared secret established.")
-            else:
-                kc3.error("❌ Key mismatch")
+        if run_tamper:
+            tampered_bytes = tamper_ciphertext(enc_result["ciphertext"])
+            tamper_res = decrypt(server_key, tampered_bytes, enc_result["nonce"])
 
-            st.caption("🔒 Private keys are NEVER displayed, logged, or stored.")
+            st.markdown(
+                f"""
+                <div class="soc-card" style="border-left:4px solid {SEV_HIGH}; margin-top:1rem; background:rgba(239, 68, 68, 0.05);">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:700; color:{SEV_HIGH}; font-size:0.95rem;">
+                            INTEGRITY BREACH DETECTED — AUTHENTICATION FAILED
+                        </span>
+                        {render_severity_badge("CRITICAL")}
+                    </div>
+                    <div style="margin-top:0.6rem; font-size:0.82rem; color:{COLOR_TEXT_PRIMARY};">
+                        Ciphertext Byte Modified in Transit: <b>Tampered by adversary</b>
+                    </div>
+                    <div style="font-size:0.82rem; color:{SEV_HIGH}; margin-top:0.25rem;">
+                        Decryption Engine Error: <b class="mono">{tamper_res.get('error', 'Authentication Tag Mismatch')}</b>
+                    </div>
+                    <div style="font-size:0.75rem; color:{COLOR_TEXT_MUTED}; margin-top:0.4rem;">
+                        AES-256-GCM authentication tag rejected modified ciphertext. Zero unauthorized data decrypted.
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
-            # Step 2: Encryption
-            st.markdown("---")
-            st.markdown("### ✉️ Step 2: AES-256-GCM Encryption")
-
-            encrypted = encrypt(message, client_key)
-
-            ecol1, ecol2 = st.columns(2)
-            with ecol1:
-                st.markdown("**Original Message:**")
-                st.markdown(f'<div class="crypto-box" style="color:#68d391;">{message}</div>', unsafe_allow_html=True)
-            with ecol2:
-                st.markdown("**Ciphertext (base64):**")
-                st.markdown(f'<div class="crypto-box">{encrypted.ciphertext}</div>', unsafe_allow_html=True)
-
-            st.markdown(f"**Nonce (96-bit):** `{encrypted.nonce}`")
-
-            # Step 3: Decryption
-            st.markdown("---")
-            st.markdown("### 🔓 Step 3: Server B Decrypts")
-
-            result = decrypt(encrypted, server_key)
-            if result.success:
-                st.success(f'✅ **Decrypted successfully:** "{result.plaintext}"')
-                st.caption("✅ Integrity verified — ciphertext was not tampered with.")
-            else:
-                st.error(f"❌ Decryption failed: {result.error}")
-
-            # Step 4: Tamper Detection
-            st.markdown("---")
-            st.markdown("### ⚠️ Step 4: Tampering Detection")
-            st.markdown("*What happens if an attacker modifies the ciphertext?*")
-
-            tampered = tamper_ciphertext(encrypted)
-
-            tcol1, tcol2 = st.columns(2)
-            with tcol1:
-                st.markdown("**Original Ciphertext:**")
-                st.markdown(f'<div class="crypto-box">{encrypted.ciphertext[:50]}...</div>', unsafe_allow_html=True)
-            with tcol2:
-                st.markdown("**Tampered Ciphertext:**")
-                st.markdown(f'<div class="crypto-box" style="color:#fc8181;">{tampered.ciphertext[:50]}...</div>', unsafe_allow_html=True)
-
-            tamper_result = decrypt(tampered, server_key)
-            st.error(
-                f"🚫 **AUTHENTICATION FAILED**\n\n"
-                f"{tamper_result.error}\n\n"
-                "AES-256-GCM detected the modification and **refused to decrypt**. "
-                "No corrupted data is ever returned."
+        # Technical Details Collapsible
+        with st.expander("Technical Cryptographic Parameters"):
+            st.markdown(
+                f"""
+                <div style="font-size:0.75rem; color:{COLOR_TEXT_SECONDARY}; line-height:1.7;">
+                    <div><b>Client Public Key (P-256):</b> <span class="mono" style="color:{COLOR_AI_PRIMARY};">{client.get_public_key_hex()[:64]}...</span></div>
+                    <div><b>Server Public Key (P-256):</b> <span class="mono" style="color:{COLOR_AI_PRIMARY};">{server.get_public_key_hex()[:64]}...</span></div>
+                    <div><b>AES-256-GCM Nonce (96-bit):</b> <span class="mono">{enc_result['nonce_hex']}</span></div>
+                    <div><b>Ciphertext Bytes (Hex):</b> <span class="mono">{enc_result['ciphertext_hex'][:64]}...</span></div>
+                    <div><b>Ciphertext Length:</b> <span class="mono">{enc_result['ciphertext_length']} bytes</span></div>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PAGE 8: MODEL PERFORMANCE
+# PAGE 6: MODEL PERFORMANCE
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def page_model_performance():
-    st.markdown("# 📊 AI Model Performance")
     st.markdown(
-        "*Evaluation results from the trained Random Forest classifier. "
-        "These are **real metrics** from the CICIDS2017 dataset — not simulated.*"
+        f"""
+        <div style="margin-bottom: 1.25rem;">
+            <h1 style="margin:0; font-size:1.6rem; font-weight:700;">AI Detection Engine</h1>
+            <div style="color:{COLOR_TEXT_SECONDARY}; font-size:0.9rem; margin-top:0.25rem;">
+                Random Forest classifier trained and evaluated on the benchmark CICIDS2017 dataset
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
     metrics = load_evaluation_metrics()
-
     if not metrics:
-        st.warning("⚠ Model metrics not found. Train the model first:\n```bash\npython ai/train.py\n```")
+        st.warning("Model evaluation metrics not found. Please train model using ai/train.py.")
         return
 
-    st.markdown('<div class="sim-disclaimer">📊 These metrics are from the REAL trained model on CICIDS2017 data — not simulation results.</div>', unsafe_allow_html=True)
+    # 4 Model Performance KPIs
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        st.markdown(render_metric_card("ACCURACY", f"{metrics['accuracy'] * 100:.2f}%", "Overall Validation Accuracy", COLOR_AI_PRIMARY), unsafe_allow_html=True)
+    with m2:
+        st.markdown(render_metric_card("PRECISION", f"{metrics['precision_macro'] * 100:.2f}%", "Macro-averaged Precision", SEV_LOW), unsafe_allow_html=True)
+    with m3:
+        st.markdown(render_metric_card("RECALL", f"{metrics['recall_macro'] * 100:.2f}%", "Macro-averaged Recall", SEV_LOW), unsafe_allow_html=True)
+    with m4:
+        st.markdown(render_metric_card("F1 SCORE", f"{metrics['f1_macro'] * 100:.2f}%", "Harmonic Mean (Precision/Recall)", COLOR_AI_PRIMARY), unsafe_allow_html=True)
 
-    st.divider()
+    # Confusion Matrix & Feature Importance Images
+    vis_col1, vis_col2 = st.columns(2)
 
-    st.markdown("### Random Forest Classifier")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Accuracy", f"{metrics['accuracy'] * 100:.2f}%")
-    col2.metric("Precision (macro)", f"{metrics['precision_macro'] * 100:.2f}%")
-    col3.metric("Recall (macro)", f"{metrics['recall_macro'] * 100:.2f}%")
-    col4.metric("F1 Score (macro)", f"{metrics['f1_macro'] * 100:.2f}%")
-
-    st.markdown("""
-    > **Why multiple metrics?** In cybersecurity, accuracy alone is misleading.
-    > A model predicting "BENIGN" for all traffic achieves 95%+ accuracy
-    > on imbalanced datasets while detecting ZERO attacks.
-    > - **Precision**: Of flagged attacks, how many were real? (False alarm rate)
-    > - **Recall**: Of real attacks, how many did we catch? (Miss rate)
-    > - **F1**: Harmonic mean — balances precision and recall.
-    > *For IDS, high Recall is more critical than Precision.*
-    """)
-
-    st.divider()
-
-    # Confusion Matrix
     cm_path = load_confusion_matrix_img()
-    if cm_path:
-        st.markdown("### Confusion Matrix")
-        st.image(str(cm_path), use_container_width=True)
-        st.caption("Diagonal = correct predictions. Off-diagonal = misclassifications.")
+    with vis_col1:
+        st.markdown(render_section_header("Confusion Matrix", "Per-class prediction breakdown on test set", "Evaluation", "radar"), unsafe_allow_html=True)
+        if cm_path:
+            st.image(str(cm_path), use_container_width=True)
+        else:
+            st.info("Confusion matrix image not generated.")
 
-    # Feature Importance
     fi_path = load_feature_importance_img()
-    if fi_path:
-        st.markdown("### Feature Importance")
-        st.image(str(fi_path), use_container_width=True)
-        st.caption("Top features the Random Forest uses to distinguish attack types.")
+    with vis_col2:
+        st.markdown(render_section_header("Feature Importance", "Top flow characteristics weighted by Random Forest", "Explainability", "cpu"), unsafe_allow_html=True)
+        if fi_path:
+            st.image(str(fi_path), use_container_width=True)
+        else:
+            st.info("Feature importance image not generated.")
+
+    # 20 Flow Features Specification
+    st.markdown(render_section_header("Flow Features Specification", "20 timing and packet dynamics extracted per flow", "Feature Engineering", "terminal"), unsafe_allow_html=True)
+
+    features = [
+        "Destination Port", "Flow Duration", "Total Fwd Packets", "Total Backward Packets",
+        "Total Length of Fwd Packets", "Total Length of Bwd Packets", "Fwd Packet Length Max",
+        "Fwd Packet Length Min", "Bwd Packet Length Max", "Bwd Packet Length Min",
+        "Flow Bytes/s", "Flow Packets/s", "Flow IAT Mean", "Flow IAT Std", "Flow IAT Max",
+        "Flow IAT Min", "Fwd IAT Total", "Bwd IAT Total", "Fwd Header Length", "Bwd Header Length"
+    ]
+    feat_cols = st.columns(4)
+    for i, feat in enumerate(features):
+        with feat_cols[i % 4]:
+            st.markdown(
+                f"""
+                <div class="soc-card" style="padding:0.45rem 0.75rem; margin-bottom:0.35rem; font-size:0.75rem;">
+                    <span class="mono" style="color:{COLOR_AI_PRIMARY}; font-weight:600;">#{i+1:02d}</span> {feat}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
     # Classification Report
     if "classification_report" in metrics:
-        st.markdown("### Per-Class Classification Report")
-        st.code(metrics["classification_report"])
+        st.markdown(render_section_header("Per-Class Classification Report", "Granular performance across attack classes", "Validation", "activity"), unsafe_allow_html=True)
+        st.code(metrics["classification_report"], language="text")
 
-    st.divider()
 
-    st.markdown("### 🧠 How AI Detection Works in AI-SNIDS")
+# ═══════════════════════════════════════════════════════════════════════════════
+# PAGE 7: SYSTEM LOGS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def page_system_logs():
     st.markdown(
-        """
-        <div class="topology-box" style="font-size: 0.8rem;">
-Network Flow
-     │
-     ▼
-Feature Extraction (20 flow features)
-     │
-     ▼
-StandardScaler (normalize)
-     │
-     ▼
-Random Forest (100 trees)
-     │
-     ├──→ Predicted Class (BENIGN / DoS / DDoS / PortScan / BruteForce)
-     ├──→ Model Confidence (probability)
-     │
-     ▼
-Risk Assessment Engine
-     │
-     ├──→ Risk Score = 0.4×confidence + 0.4×severity + 0.2×intensity
-     ├──→ Risk Level (MONITOR / LOW / MEDIUM / HIGH)
-     └──→ Action (ALLOW / LOG / ALERT / BLOCK)
+        f"""
+        <div style="margin-bottom: 1.25rem;">
+            <h1 style="margin:0; font-size:1.6rem; font-weight:700;">System Logs</h1>
+            <div style="color:{COLOR_TEXT_SECONDARY}; font-size:0.9rem; margin-top:0.25rem;">
+                Tamper-evident chronological audit trail of all network security events
+            </div>
         </div>
-        """, unsafe_allow_html=True
+        """,
+        unsafe_allow_html=True,
     )
 
-    st.info(
-        "**Important:** AI Confidence ≠ Security Risk. "
-        "A PortScan with 95% confidence is less dangerous than a DDoS with 70% confidence. "
-        "The Risk Engine weighs both the model output AND the attack severity."
+    log_col1, log_col2, log_col3 = st.columns([1, 1.5, 1])
+    with log_col1:
+        log_limit = st.selectbox("Log Limit", [50, 100, 250, 500], index=1)
+    with log_col2:
+        source_origin = st.selectbox("Filter Origin", ["ALL", "CICIDS2017", "SIMULATION"])
+    with log_col3:
+        pass
+
+    events = get_recent_events(log_limit * 2)
+    if not events:
+        st.info("No audit logs currently available.")
+        return
+
+    df_logs = pd.DataFrame(events)
+
+    if source_origin != "ALL":
+        df_logs = df_logs[df_logs["data_source"] == source_origin]
+
+    df_logs = df_logs.head(log_limit)
+
+    st.markdown(
+        f"""
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem; font-size:0.8rem; color:{COLOR_TEXT_SECONDARY};">
+            <span>Audit Records Count: <b>{len(df_logs)}</b></span>
+            <span class="mono" style="color:{SEV_LOW}; font-size:0.75rem;">INTEGRITY: VERIFIED</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    cols_order = ["timestamp", "source_ip", "destination_ip", "protocol", "attack_type", "risk_level", "action", "data_source"]
+    existing_cols = [c for c in cols_order if c in df_logs.columns]
+    display_logs = df_logs[existing_cols].copy()
+    display_logs.columns = [c.upper().replace("_", " ") for c in display_logs.columns]
+
+    st.dataframe(
+        display_logs,
+        use_container_width=True,
+        hide_index=True,
+        height=450,
+    )
+
+    csv_data = df_logs.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        label="DOWNLOAD AUDIT LOG (CSV)",
+        data=csv_data,
+        file_name=f"ai_snids_audit_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+        mime="text/csv",
     )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# MAIN APP
+# MAIN ROUTING
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def main():
     page = render_sidebar()
 
     page_map = {
-        "🛡️ Security Overview":    page_security_overview,
-        "🌐 Virtual Network":      page_virtual_network,
-        "🧪 Attack Scenario Lab":  page_attack_lab,
-        "📡 Live Traffic Monitor":  page_live_traffic,
-        "🚨 Threat Center":        page_threat_center,
-        "🛑 Response Center":      page_response_center,
-        "🔐 Crypto Lab":           page_crypto_lab,
-        "📊 Model Performance":    page_model_performance,
+        "OVERVIEW": page_overview,
+        "LIVE MONITORING": page_live_monitoring,
+        "ATTACK SCENARIO LAB": page_attack_lab,
+        "THREAT CENTER": page_threat_center,
+        "SECURE COMMUNICATION": page_secure_communication,
+        "MODEL PERFORMANCE": page_model_performance,
+        "SYSTEM LOGS": page_system_logs,
     }
 
-    page_fn = page_map.get(page, page_security_overview)
+    page_fn = page_map.get(page, page_overview)
     page_fn()
 
 
