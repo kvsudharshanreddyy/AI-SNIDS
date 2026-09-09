@@ -205,11 +205,11 @@ def render_sidebar() -> str:
                 <div style="display:flex; align-items:center; gap:0.6rem;">
                     {get_icon("shield", size=22, color=COLOR_AI_PRIMARY)}
                     <span style="font-size:1.15rem; font-weight:700; color:{COLOR_TEXT_PRIMARY}; letter-spacing:-0.02em;">
-                        AI-SNIDS
+                        <span style="color:{COLOR_AI_PRIMARY};">AI</span>-SNIDS
                     </span>
                 </div>
                 <div style="font-size:0.75rem; color:{COLOR_TEXT_SECONDARY}; margin-top:0.25rem;">
-                    AI Network Security Operations
+                    <span style="color:{COLOR_AI_PRIMARY}; font-weight:500;">AI</span> Network Security Operations
                 </div>
             </div>
             """,
@@ -298,13 +298,13 @@ def page_overview():
         f"""
         <div style="margin-bottom: 1.25rem;">
             <div style="display:flex; align-items:center; gap:0.5rem;">
-                <h1 style="margin:0; font-size:1.6rem; font-weight:700;">AI-SNIDS</h1>
-                <span class="soc-badge" style="color:{COLOR_AI_PRIMARY}; background:rgba(56,189,248,0.1); border:1px solid rgba(56,189,248,0.3);">
+                <h1 style="margin:0; font-size:1.6rem; font-weight:700;"><span style="color:{COLOR_AI_PRIMARY};">AI</span>-SNIDS</h1>
+                <span class="soc-badge" style="color:{COLOR_AI_PRIMARY}; background:rgba(0,229,255,0.08); border:1px solid rgba(0,229,255,0.25);">
                     SOC PORTAL
                 </span>
             </div>
             <div style="color:{COLOR_TEXT_SECONDARY}; font-size:0.9rem; margin-top:0.25rem;">
-                Network Security Operations Center — AI-powered intrusion detection and response
+                Network Security Operations Center · <span style="color:{COLOR_AI_PRIMARY}; font-weight:500;">AI</span>-powered intrusion detection and response
             </div>
         </div>
         """,
@@ -338,13 +338,12 @@ def page_overview():
     with k5:
         risk_label = "HIGH" if stats["high_risk_threats"] > 0 else ("MEDIUM" if stats["threats_detected"] > 0 else "LOW")
         risk_color = SEV_HIGH if risk_label == "HIGH" else (SEV_MED if risk_label == "MEDIUM" else SEV_LOW)
-        st.markdown(render_metric_card("CURRENT RISK", risk_label, f"Detection: {stats['detection_rate']}", risk_color), unsafe_allow_html=True)
+        st.markdown(render_metric_card("CURRENT RISK", risk_label, "Composite Threat Level", risk_color), unsafe_allow_html=True)
 
     # Activity & Distribution Visualizations
     chart_col1, chart_col2 = st.columns([3, 2])
-
-    events = get_recent_events(150)
-    df = pd.DataFrame(events) if events else pd.DataFrame()
+    recent_events = get_recent_events(60)
+    df = pd.DataFrame(recent_events)
 
     with chart_col1:
         st.markdown(render_section_header("Network Activity Timeline", "Sequential flow risk assessment & density", "Telemetry", "activity"), unsafe_allow_html=True)
@@ -361,7 +360,7 @@ def page_overview():
                     name="Risk Score",
                     line=dict(color=COLOR_AI_PRIMARY, width=2),
                     fill="tozeroy",
-                    fillcolor="rgba(56, 189, 248, 0.08)",
+                    fillcolor="rgba(0, 229, 255, 0.08)",
                 )
             )
             fig_timeline.add_hline(
@@ -385,7 +384,7 @@ def page_overview():
         st.markdown(render_section_header("Threat Distribution", "Attack classifications across monitored flows", "Classification", "radar"), unsafe_allow_html=True)
         if not df.empty and "attack_type" in df.columns:
             counts = df["attack_type"].value_counts()
-            palette = [COLOR_AI_PRIMARY, COLOR_AI_SECONDARY, SEV_LOW, SEV_MED, SEV_HIGH, "#cbd5e1"]
+            palette = [COLOR_AI_PRIMARY, COLOR_AI_SECONDARY, SEV_LOW, SEV_MED, SEV_HIGH, COLOR_TEXT_MUTED]
             fig_donut = px.pie(
                 values=counts.values,
                 names=counts.index,
@@ -478,7 +477,7 @@ def page_live_monitoring():
         <div style="margin-bottom: 1.25rem;">
             <h1 style="margin:0; font-size:1.6rem; font-weight:700;">Live Monitoring</h1>
             <div style="color:{COLOR_TEXT_SECONDARY}; font-size:0.9rem; margin-top:0.25rem;">
-                Real-time traffic flow inspection, feature analysis, and automated AI prediction
+                Real-time traffic flow inspection, feature analysis, and automated <span style="color:{COLOR_AI_PRIMARY}; font-weight:500;">AI</span> prediction
             </div>
         </div>
         """,
@@ -553,7 +552,7 @@ def page_attack_lab():
         <div style="margin-bottom: 1.25rem;">
             <h1 style="margin:0; font-size:1.6rem; font-weight:700;">Attack Scenario Lab</h1>
             <div style="color:{COLOR_TEXT_SECONDARY}; font-size:0.9rem; margin-top:0.25rem;">
-                Safely simulate abnormal network behavior and observe how AI-SNIDS detects and responds.
+                Safely simulate abnormal network behavior and observe how <span style="color:{COLOR_AI_PRIMARY}; font-weight:500;">AI</span>-SNIDS detects and responds.
             </div>
         </div>
         """,
@@ -600,6 +599,32 @@ def page_attack_lab():
     }
 
     selected_scenario = st.selectbox("Baseline Scenario", list(scenarios_meta.keys()), index=0)
+
+    # Visual scenario cards grid with status indicators and hover styling
+    sc_cols = st.columns(6)
+    for i, (sc_name, (sc_desc, sc_icon)) in enumerate(scenarios_meta.items()):
+        is_sel = (sc_name == selected_scenario)
+        is_danger = sc_name in ["Port Scan", "Brute Force", "DoS", "DDoS"]
+        border_style = f"border: 1px solid {COLOR_AI_PRIMARY}; box-shadow: 0 0 12px rgba(0, 229, 255, 0.25);" if is_sel else f"border: 1px solid {COLOR_BORDER};"
+        indicator_color = SEV_HIGH if is_danger else (SEV_MED if sc_name == "Suspicious Traffic" else SEV_LOW)
+        with sc_cols[i]:
+            st.markdown(
+                f"""
+                <div class="soc-card" style="padding:0.7rem 0.6rem; text-align:center; min-height:105px; {border_style}">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
+                        <span class="pulse-indicator" style="background:{indicator_color}; box-shadow:0 0 6px {indicator_color};"></span>
+                        {get_icon(sc_icon, size=15, color=COLOR_AI_PRIMARY if is_sel else COLOR_TEXT_MUTED)}
+                    </div>
+                    <div style="font-weight:600; font-size:0.78rem; color:{COLOR_TEXT_PRIMARY if is_sel else COLOR_TEXT_SECONDARY}; margin-top:0.15rem;">
+                        {sc_name}
+                    </div>
+                    <div style="font-size:0.65rem; color:{COLOR_TEXT_MUTED}; margin-top:0.2rem; line-height:1.25;">
+                        {sc_desc[:40]}...
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
     # Sudden Mid-Stream Attack Injection Controls
     ctrl_col1, ctrl_col2, ctrl_col3, ctrl_col4 = st.columns(4)
@@ -884,7 +909,7 @@ def page_threat_center():
         st.markdown(render_section_header("Incident Investigation Panel", "Detailed telemetry and response actions", "Triage", "shield"), unsafe_allow_html=True)
         st.markdown(
             f"""
-            <div class="soc-card" style="border-top:2px solid {SEV_HIGH};">
+            <div class="soc-card soc-card-threat" style="border-top:2px solid {SEV_HIGH};">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
                     <span style="font-weight:700; font-size:1.05rem; color:{COLOR_TEXT_PRIMARY};">
                         {selected_event['attack_type']}
@@ -1078,7 +1103,7 @@ def page_model_performance():
     st.markdown(
         f"""
         <div style="margin-bottom: 1.25rem;">
-            <h1 style="margin:0; font-size:1.6rem; font-weight:700;">AI Detection Engine</h1>
+            <h1 style="margin:0; font-size:1.6rem; font-weight:700;"><span style="color:{COLOR_AI_PRIMARY};">AI</span> Detection Engine</h1>
             <div style="color:{COLOR_TEXT_SECONDARY}; font-size:0.9rem; margin-top:0.25rem;">
                 Random Forest classifier trained and evaluated on the benchmark CICIDS2017 dataset
             </div>
