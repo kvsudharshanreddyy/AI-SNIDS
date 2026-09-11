@@ -565,6 +565,43 @@ GLOBAL_CSS = f"""
         border-color: #333333 !important;
         transform: translateY(-2px);
     }}
+
+    /* Attack Intelligence Pop Message Container */
+    .soc-pop-alert {{
+        background-color: #080808;
+        border: 1px solid #262626;
+        border-radius: 8px;
+        padding: 1.15rem 1.25rem;
+        margin: 0.75rem 0 1.25rem 0;
+        transition: all 200ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+        animation: fadeIn 250ms ease-out;
+    }}
+    .soc-pop-alert:hover {{
+        background-color: #0C0C0C !important;
+        border-color: #383838 !important;
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7) !important;
+    }}
+    .soc-pop-alert-threat {{
+        border-color: rgba(239, 68, 68, 0.45) !important;
+        box-shadow: 0 4px 22px rgba(239, 68, 68, 0.15) !important;
+    }}
+    .soc-pop-alert-threat:hover {{
+        border-color: rgba(239, 68, 68, 0.7) !important;
+        box-shadow: 0 8px 28px rgba(239, 68, 68, 0.25) !important;
+    }}
+    .soc-pop-alert-safe {{
+        border-color: rgba(34, 197, 94, 0.3) !important;
+    }}
+    .soc-pop-alert-safe:hover {{
+        border-color: rgba(34, 197, 94, 0.6) !important;
+    }}
+
+    @keyframes fadeIn {{
+        from {{ opacity: 0; transform: translateY(-4px); }}
+        to {{ opacity: 1; transform: translateY(0); }}
+    }}
 </style>
 """
 
@@ -708,3 +745,191 @@ def get_plotly_soc_layout(height: int = 240) -> dict:
             font=dict(size=10, color=COLOR_GRAY),
         ),
     )
+
+
+# ─── Attack Intelligence & Explanations ─────────────────────────────────────────
+
+ATTACK_INTELLIGENCE = {
+    "Port Scan": {
+        "title": "Port Scanning Reconnaissance",
+        "icon": "radar",
+        "what": "The adversary is sending a high-frequency sequence of TCP SYN probe packets across 13 destination ports (including 21, 22, 23, 80, 443, 3389) on Server B with near-zero backward payload and micro flow durations.",
+        "why": "Initial reconnaissance phase of the Cyber Kill Chain. The attacker is actively probing network daemons to discover unpatched listening ports and map server architecture before launching targeted exploits.",
+        "danger": "Exposes vulnerable software services, exposed management ports, and server operating system versions to the adversary.",
+        "ai_detection": "Random Forest identified high flow packet rates directed across multiple distinct ports with minimal payload transfer.",
+        "mitigation": "Automated Perimeter Defense: Ingress traffic from 10.0.0.50 dropped immediately; source IP quarantined.",
+        "severity": "HIGH",
+    },
+    "DoS": {
+        "title": "Denial of Service (Volumetric Flood)",
+        "icon": "activity",
+        "what": "A single malicious host (10.0.0.50) is blasting an overwhelming surge of rapid TCP requests directly at Server B's HTTP port (80) with minimal inter-arrival times.",
+        "why": "Resource starvation attack. The adversary is attempting to exhaust Server B's CPU, memory pool, and TCP socket connection backlog to cause complete service unresponsiveness.",
+        "danger": "Legitimate users (Client A) are starved of connectivity, leading to catastrophic denial of service and downtime.",
+        "ai_detection": "Extreme Flow Packets/s combined with near-zero Flow Inter-Arrival Times (IAT Min/Mean) and concentrated target IP/port.",
+        "mitigation": "Rate-limiting activated: Source IP isolated; stateful connection drop applied at the gateway router.",
+        "severity": "CRITICAL",
+    },
+    "DDoS": {
+        "title": "Distributed Denial of Service (Botnet Swarm)",
+        "icon": "zap",
+        "what": "Multiple coordinated botnet worker nodes (10.0.0.51 through 10.0.0.56) are simultaneously flooding Server B from multiple distinct source addresses.",
+        "why": "Volumetric distributed swarm engineered to saturate upstream routing bandwidth and overwhelm both firewall state tables and Server B simultaneously.",
+        "danger": "Bypasses single-IP rate limiters and creates massive network congestion across the entire virtual perimeter.",
+        "ai_detection": "Correlated flow bursts exhibiting synchronized inter-arrival rates across distinct source IPs targeting port 80.",
+        "mitigation": "Subnet-wide perimeter defense: Distributed drop policies activated; all identified botnet nodes blocked simultaneously.",
+        "severity": "CRITICAL",
+    },
+    "Brute Force": {
+        "title": "Authentication Brute Force (Credential Abuse)",
+        "icon": "lock",
+        "what": "The attacker is repeatedly issuing automated credential login attempts against authentication endpoints (Port 22 SSH and Port 21 FTP) using dictionary wordlists.",
+        "why": "Credential guessing / password spraying. The adversary is attempting to breach administrative shell credentials to gain unauthorized remote access.",
+        "danger": "Risk of root or administrator system takeover, unauthorized lateral movement, and sensitive database compromise.",
+        "ai_detection": "Repetitive short-lived TCP sessions targeting authentication ports with identical packet lengths and failure rates.",
+        "mitigation": "Adaptive fail2ban lockout: Host IP 10.0.0.50 blocked on all administrative ports immediately.",
+        "severity": "HIGH",
+    },
+    "Suspicious Traffic": {
+        "title": "Anomalous Traffic (Stealth Jitter / Evasion Probe)",
+        "icon": "alert-triangle",
+        "what": "Traffic stream exhibiting artificial timing delays (jitter), fluctuating packet lengths, and mixed protocol behavior alternating between web browsing and scanning.",
+        "why": "Evasion technique. The attacker introduces timing jitter and pseudo-benign requests to stay under static detection thresholds and confuse signature-based rules.",
+        "danger": "Indicates advanced covert reconnaissance, stealth data exfiltration staging, or active evasion testing against the defense system.",
+        "ai_detection": "Feature anomaly: Statistical variance in Flow IAT Std and Max Packet Length deviating significantly from standard benign clusters.",
+        "mitigation": "Flow tagged for deep inspection; origin placed under heightened continuous behavioral monitoring.",
+        "severity": "MEDIUM",
+    },
+    "BENIGN": {
+        "title": "Legitimate Traffic (Standard Flow)",
+        "icon": "shield-check",
+        "what": "Normal HTTP (Port 80) and HTTPS (Port 443) communication between authorized Client A (10.0.0.10) and Server B (10.0.0.100).",
+        "why": "Standard day-to-day enterprise operations conforming to standard TCP three-way handshakes and valid protocol payloads.",
+        "danger": "None — fully authenticated and normal operational telemetry.",
+        "ai_detection": "Flow characteristics align precisely with baseline training distribution (balanced packet ratios, normal IAT).",
+        "mitigation": "Unrestricted routing: Traffic permitted through the network with continuous telemetry logging.",
+        "severity": "SAFE",
+    },
+    "Normal Traffic": {
+        "title": "Legitimate Traffic (Standard Flow)",
+        "icon": "shield-check",
+        "what": "Normal HTTP (Port 80) and HTTPS (Port 443) communication between authorized Client A (10.0.0.10) and Server B (10.0.0.100).",
+        "why": "Standard day-to-day enterprise operations conforming to standard TCP three-way handshakes and valid protocol payloads.",
+        "danger": "None — fully authenticated and normal operational telemetry.",
+        "ai_detection": "Flow characteristics align precisely with baseline training distribution (balanced packet ratios, normal IAT).",
+        "mitigation": "Unrestricted routing: Traffic permitted through the network with continuous telemetry logging.",
+        "severity": "SAFE",
+    },
+}
+
+
+def render_attack_pop_message(
+    attack_type: str,
+    source_ip: str,
+    destination_ip: str,
+    confidence: float,
+    risk_level: str,
+    action: str,
+    is_injected: bool = False,
+    extra_note: str = None,
+) -> str:
+    """Render a high-visibility real-time threat intelligence pop message card."""
+    norm_type = attack_type.strip()
+    if "BENIGN" in norm_type.upper() or "NORMAL" in norm_type.upper():
+        norm_type = "BENIGN"
+    elif "PORT" in norm_type.upper():
+        norm_type = "Port Scan"
+    elif "BRUTE" in norm_type.upper():
+        norm_type = "Brute Force"
+    elif "DDOS" in norm_type.upper():
+        norm_type = "DDoS"
+    elif "DOS" in norm_type.upper():
+        norm_type = "DoS"
+    elif "SUSPICIOUS" in norm_type.upper():
+        norm_type = "Suspicious Traffic"
+
+    intel = ATTACK_INTELLIGENCE.get(norm_type, ATTACK_INTELLIGENCE["Suspicious Traffic"])
+    is_safe = (norm_type == "BENIGN")
+
+    card_class = "soc-pop-alert soc-pop-alert-safe" if is_safe else "soc-pop-alert soc-pop-alert-threat"
+    dot_class = "dot-green" if is_safe else ("dot-amber" if norm_type == "Suspicious Traffic" else "dot-red")
+    icon_svg = get_icon(intel["icon"], size=18, color=SEV_SAFE if is_safe else (SEV_WARN if norm_type == "Suspicious Traffic" else SEV_THREAT))
+
+    if is_injected:
+        banner_text = "⚡ SUDDEN MID-STREAM INJECTION · ATTACK ACTIVE"
+    elif not is_safe:
+        banner_text = "🚨 THREAT INTELLIGENCE POPUP · ACTIVE INCIDENT DETECTED"
+    else:
+        banner_text = "✓ TELEMETRY POPUP · VERIFIED BENIGN FLOW"
+
+    action_color = SEV_SAFE if action in ["ALLOW", "MONITOR"] else SEV_THREAT
+    action_bg = "rgba(34, 197, 94, 0.1)" if action in ["ALLOW", "MONITOR"] else "rgba(239, 68, 68, 0.1)"
+
+    note_html = (
+        f'<div style="margin-top:0.5rem; padding:0.4rem 0.6rem; background:#111111; border-left:2px solid {COLOR_AI_ACCENT}; font-size:0.73rem; color:{COLOR_GRAY};">'
+        f'{extra_note}</div>'
+    ) if extra_note else ""
+
+    return f"""
+    <div class="{card_class}">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; border-bottom:1px solid #1C1C1C; padding-bottom:0.5rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+                <span class="status-dot {dot_class}"></span>
+                <span style="font-family:'JetBrains Mono', monospace; font-size:0.68rem; color:{COLOR_GRAY}; letter-spacing:0.04em;">
+                    {banner_text}
+                </span>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+                {render_severity_badge(risk_level)}
+                <span class="soc-badge" style="color:{action_color}; background:{action_bg}; border:1px solid {action_color}40;">
+                    {action}
+                </span>
+            </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:0.65rem; margin-bottom:0.75rem;">
+            <div style="background:#121212; border:1px solid #242424; border-radius:6px; padding:0.45rem; display:flex; align-items:center;">
+                {icon_svg}
+            </div>
+            <div>
+                <div style="font-size:1.02rem; font-weight:600; color:{COLOR_WHITE}; letter-spacing:-0.02em;">
+                    {intel['title']}
+                </div>
+                <div class="mono" style="font-size:0.74rem; color:{COLOR_MUTED}; margin-top:0.15rem;">
+                    Origin: <span style="color:{COLOR_WHITE};">{source_ip}</span> ➔ Target: <span style="color:{COLOR_WHITE};">{destination_ip}</span> · AI Confidence: <span style="color:{COLOR_AI_ACCENT};">{confidence*100:.1f}%</span>
+                </div>
+            </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem; margin:0.75rem 0; background:#050505; border:1px solid #161616; border-radius:6px; padding:0.85rem;">
+            <div>
+                <div style="font-size:0.68rem; font-weight:600; color:{COLOR_AI_ACCENT}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.25rem;">
+                    WHAT IS THIS ATTACK?
+                </div>
+                <div style="font-size:0.77rem; color:#CCCCCC; line-height:1.45;">
+                    {intel['what']}
+                </div>
+            </div>
+            <div>
+                <div style="font-size:0.68rem; font-weight:600; color:{SEV_WARN if not is_safe else SEV_SAFE}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.25rem;">
+                    WHY IT HAPPENED & THREAT REASONING
+                </div>
+                <div style="font-size:0.77rem; color:#CCCCCC; line-height:1.45;">
+                    {intel['why']}
+                </div>
+            </div>
+        </div>
+
+        {note_html}
+
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.71rem; color:{COLOR_MUTED}; border-top:1px solid #161616; padding-top:0.5rem; margin-top:0.6rem;">
+            <div>
+                <span style="color:{COLOR_GRAY};">AI Detection Logic:</span> {intel['ai_detection']}
+            </div>
+            <div>
+                <span style="color:{COLOR_GRAY};">Mitigation:</span> <span style="color:{COLOR_WHITE}; font-weight:500;">{intel['mitigation']}</span>
+            </div>
+        </div>
+    </div>
+    """
+

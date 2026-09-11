@@ -50,6 +50,8 @@ from dashboard.theme import (
     render_severity_badge,
     render_network_node,
     get_plotly_soc_layout,
+    ATTACK_INTELLIGENCE,
+    render_attack_pop_message,
 )
 from simulation.simulator import (
     generate_simulation_batch,
@@ -373,7 +375,7 @@ def page_overview():
         layout["xaxis"]["title"] = "Flow #"
         layout["yaxis"]["title"] = "Risk"
         fig_timeline.update_layout(layout)
-        st.plotly_chart(fig_timeline, use_container_width=True)
+        st.plotly_chart(fig_timeline, width="stretch")
     else:
         st.info("No network activity telemetry available.")
 
@@ -392,7 +394,7 @@ def page_overview():
             if "timestamp" in t_table.columns:
                 t_table["timestamp"] = pd.to_datetime(t_table["timestamp"]).dt.strftime("%H:%M:%S")
             t_table.columns = [c.upper().replace("_", " ") for c in t_table.columns]
-            st.dataframe(t_table, use_container_width=True, hide_index=True, height=260)
+            st.dataframe(t_table, width="stretch", hide_index=True, height=260)
         else:
             st.markdown(f'<div style="color:{COLOR_GRAY}; font-size:0.82rem; padding:1rem 0;">No active threats detected in recent flow logs.</div>', unsafe_allow_html=True)
     else:
@@ -450,7 +452,7 @@ def page_live_monitoring():
         table_df["confidence"] = table_df["confidence"].apply(lambda x: f"{float(x)*100:.1f}%")
 
     table_df.columns = [c.upper().replace("_", " ") for c in table_df.columns]
-    st.dataframe(table_df, use_container_width=True, hide_index=True, height=480)
+    st.dataframe(table_df, width="stretch", hide_index=True, height=480)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -526,6 +528,75 @@ def page_attack_lab():
                 unsafe_allow_html=True,
             )
 
+    with st.expander("ℹ️ Threat Knowledge Base — What each attack is and why it happens", expanded=False):
+        st.markdown(
+            f"""
+            <div style="display:flex; flex-direction:column; gap:0.5rem; font-size:0.8rem;">
+                <div style="padding:0.6rem 0.8rem; background:#080808; border:1px solid #1C1C1C; border-radius:6px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:600; color:{COLOR_WHITE};">Port Scanning</span>
+                        {render_severity_badge('HIGH')}
+                    </div>
+                    <div style="font-size:0.75rem; color:{COLOR_AI_ACCENT}; margin-top:0.25rem;">
+                        <b>WHAT:</b> Adversary probes 13 TCP ports on Server B with micro flow durations and zero payload.
+                    </div>
+                    <div style="font-size:0.75rem; color:{COLOR_GRAY}; margin-top:0.2rem;">
+                        <b>WHY:</b> Initial reconnaissance phase to discover unpatched services before launching exploits.
+                    </div>
+                </div>
+                <div style="padding:0.6rem 0.8rem; background:#080808; border:1px solid #1C1C1C; border-radius:6px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:600; color:{COLOR_WHITE};">DoS (Denial of Service)</span>
+                        {render_severity_badge('CRITICAL')}
+                    </div>
+                    <div style="font-size:0.75rem; color:{COLOR_AI_ACCENT}; margin-top:0.25rem;">
+                        <b>WHAT:</b> Single attacker floods Server B port 80 with high-frequency packets and minimal inter-arrival times.
+                    </div>
+                    <div style="font-size:0.75rem; color:{COLOR_GRAY}; margin-top:0.2rem;">
+                        <b>WHY:</b> Resource exhaustion attack aimed at crashing CPU, RAM, and TCP connection tables.
+                    </div>
+                </div>
+                <div style="padding:0.6rem 0.8rem; background:#080808; border:1px solid #1C1C1C; border-radius:6px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:600; color:{COLOR_WHITE};">DDoS (Botnet Swarm)</span>
+                        {render_severity_badge('CRITICAL')}
+                    </div>
+                    <div style="font-size:0.75rem; color:{COLOR_AI_ACCENT}; margin-top:0.25rem;">
+                        <b>WHAT:</b> 6 coordinated botnet nodes (10.0.0.51-56) simultaneously flood Server B.
+                    </div>
+                    <div style="font-size:0.75rem; color:{COLOR_GRAY}; margin-top:0.2rem;">
+                        <b>WHY:</b> Distributed volumetric surge engineered to bypass single-IP rate limiters and swamp gateway routers.
+                    </div>
+                </div>
+                <div style="padding:0.6rem 0.8rem; background:#080808; border:1px solid #1C1C1C; border-radius:6px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:600; color:{COLOR_WHITE};">Authentication Brute Force</span>
+                        {render_severity_badge('HIGH')}
+                    </div>
+                    <div style="font-size:0.75rem; color:{COLOR_AI_ACCENT}; margin-top:0.25rem;">
+                        <b>WHAT:</b> Rapid automated login attempts against SSH (22) and FTP (21) using dictionary wordlists.
+                    </div>
+                    <div style="font-size:0.75rem; color:{COLOR_GRAY}; margin-top:0.2rem;">
+                        <b>WHY:</b> Credential stuffing to steal administrative root credentials and gain unauthorized remote shell access.
+                    </div>
+                </div>
+                <div style="padding:0.6rem 0.8rem; background:#080808; border:1px solid #1C1C1C; border-radius:6px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:600; color:{COLOR_WHITE};">Suspicious Traffic (Evasion Jitter)</span>
+                        {render_severity_badge('MEDIUM')}
+                    </div>
+                    <div style="font-size:0.75rem; color:{COLOR_AI_ACCENT}; margin-top:0.25rem;">
+                        <b>WHAT:</b> Ambiguous flows with artificial timing delays and mixed benign/malicious signatures.
+                    </div>
+                    <div style="font-size:0.75rem; color:{COLOR_GRAY}; margin-top:0.2rem;">
+                        <b>WHY:</b> Stealth probing to test IDS threshold boundaries and evade rule-based firewall alarms.
+                    </div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
     st.markdown('<div style="margin: 1rem 0;"></div>', unsafe_allow_html=True)
 
     # Simulation Controls
@@ -553,7 +624,7 @@ def page_attack_lab():
     with ctrl_col4:
         duration = st.slider("Duration (Sec)", min_value=5, max_value=30, value=10, step=5)
 
-    start_simulation = st.button("START SIMULATION", type="primary", use_container_width=True)
+    start_simulation = st.button("START SIMULATION", type="primary", width="stretch")
 
     if start_simulation:
         is_dynamic = (injected_attack != "None")
@@ -585,6 +656,7 @@ def page_attack_lab():
         threats_count = 0
         blocked_count = 0
         sleep_interval = max(duration / total_events, 0.02) if total_events > 0 else 0.05
+        has_toasted_attack = set()
 
         for idx, event in enumerate(events_batch):
             result = process_simulated_event(event)
@@ -599,35 +671,42 @@ def page_attack_lab():
             if result["was_blocked"]:
                 blocked_count += 1
 
-            if is_injected or (is_threat and selected_scenario == "Normal Traffic"):
+            # Trigger pop toast if attack phase begins or new threat occurs
+            if is_threat and db_event.attack_type not in has_toasted_attack:
+                has_toasted_attack.add(db_event.attack_type)
+                atk_info = ATTACK_INTELLIGENCE.get(db_event.attack_type, {})
+                st.toast(
+                    f"🚨 {db_event.attack_type.upper()} DETECTED!\n{atk_info.get('why', 'Adversary activity detected!')[:85]}...",
+                    icon="⚠️"
+                )
+
+            # Render rich Attack Intelligence Pop Message Card while attack is happening
+            if is_injected or is_threat:
                 anim_slot.markdown(
-                    f"""
-                    <div class="soc-card" style="border-left: 2px solid {SEV_THREAT}; padding: 0.75rem 1rem;">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-weight:600; color:{SEV_THREAT}; font-size:0.85rem;">
-                                ATTACK DETECTED: {db_event.attack_type}
-                            </span>
-                            {render_severity_badge(db_event.risk_level)}
-                        </div>
-                        <div class="mono" style="font-size:0.72rem; color:{COLOR_MUTED}; margin-top:0.25rem;">
-                            {db_event.source_ip} ➔ {db_event.destination_ip} · Confidence: {db_event.confidence*100:.1f}% · Action: {db_event.action}
-                        </div>
-                    </div>
-                    """,
+                    render_attack_pop_message(
+                        attack_type=db_event.attack_type,
+                        source_ip=db_event.source_ip,
+                        destination_ip=db_event.destination_ip,
+                        confidence=db_event.confidence,
+                        risk_level=db_event.risk_level,
+                        action=db_event.action,
+                        is_injected=is_injected,
+                        extra_note=f"Simulated flow #{idx+1} of {total_events} · Flow Duration: {event['features'].get('Flow Duration', 0)}µs"
+                    ),
                     unsafe_allow_html=True,
                 )
             else:
                 anim_slot.markdown(
-                    f"""
-                    <div class="soc-card" style="border-left: 2px solid {SEV_SAFE}; padding: 0.75rem 1rem;">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-weight:500; color:{COLOR_WHITE}; font-size:0.85rem;">
-                                BENIGN FLOW: {db_event.source_ip} ➔ {db_event.destination_ip}
-                            </span>
-                            {render_severity_badge('BENIGN')}
-                        </div>
-                    </div>
-                    """,
+                    render_attack_pop_message(
+                        attack_type="BENIGN",
+                        source_ip=db_event.source_ip,
+                        destination_ip=db_event.destination_ip,
+                        confidence=db_event.confidence,
+                        risk_level=db_event.risk_level,
+                        action=db_event.action,
+                        is_injected=False,
+                        extra_note=f"Simulated flow #{idx+1} of {total_events} · Clean HTTP/HTTPS Web Flow"
+                    ),
                     unsafe_allow_html=True,
                 )
 
@@ -658,7 +737,7 @@ def page_attack_lab():
             layout_live = get_plotly_soc_layout(height=200)
             layout_live["yaxis"]["range"] = [0, 1.05]
             fig_live.update_layout(layout_live)
-            chart_slot.plotly_chart(fig_live, use_container_width=True)
+            chart_slot.plotly_chart(fig_live, width="stretch")
 
             time.sleep(sleep_interval)
 
@@ -674,36 +753,49 @@ def page_attack_lab():
     st.markdown(render_section_header("Instant Attack Injection", "1-click sudden strike triggers", "Actions", "zap"), unsafe_allow_html=True)
 
     pad_col1, pad_col2, pad_col3, pad_col4, pad_col5 = st.columns(5)
+    instant_slot = st.empty()
 
     def _trigger_instant_burst(attack_type: str, is_attack: bool = True):
         burst = run_instant_attack_burst(attack_type, count=6, intensity="HIGH")
         latest = burst[-1]["db_event"]
+        atk_info = ATTACK_INTELLIGENCE.get(attack_type, {})
+
         if is_attack:
-            st.error(
-                f"SUDDEN {attack_type.upper()}: "
-                f"Flagged {latest.attack_type} ({latest.confidence*100:.1f}%) · "
-                f"Risk: {latest.risk_level} · Action: {latest.action} · Source: {latest.source_ip}"
+            st.toast(
+                f"🚨 SUDDEN {attack_type.upper()} ATTACK INJECTED!\n{atk_info.get('why', '')[:85]}...",
+                icon="⚠️"
             )
         else:
-            st.success(
-                f"CLEAN FLOW: "
-                f"Client A (10.0.0.10) ➔ Server B (10.0.0.100) classified as BENIGN (Action: ALLOW)"
-            )
+            st.toast("✓ CLEAN BENIGN FLOW INJECTED (Client A ➔ Server B)", icon="🛡️")
+
+        instant_slot.markdown(
+            render_attack_pop_message(
+                attack_type=latest.attack_type,
+                source_ip=latest.source_ip,
+                destination_ip=latest.destination_ip,
+                confidence=latest.confidence,
+                risk_level=latest.risk_level,
+                action=latest.action,
+                is_injected=is_attack,
+                extra_note=f"Instant 6-packet burst executed against virtual topology. Telemetry recorded in audit database. ({latest.source_ip} ➔ {latest.destination_ip})"
+            ),
+            unsafe_allow_html=True,
+        )
 
     with pad_col1:
-        if st.button("Port Scan", use_container_width=True):
+        if st.button("Port Scan", width="stretch"):
             _trigger_instant_burst("Port Scan")
     with pad_col2:
-        if st.button("DDoS Swarm", use_container_width=True):
+        if st.button("DDoS Swarm", width="stretch"):
             _trigger_instant_burst("DDoS")
     with pad_col3:
-        if st.button("DoS Flood", use_container_width=True):
+        if st.button("DoS Flood", width="stretch"):
             _trigger_instant_burst("DoS")
     with pad_col4:
-        if st.button("Brute Force", use_container_width=True):
+        if st.button("Brute Force", width="stretch"):
             _trigger_instant_burst("Brute Force")
     with pad_col5:
-        if st.button("Normal Flow", use_container_width=True):
+        if st.button("Normal Flow", width="stretch"):
             _trigger_instant_burst("Normal Traffic", is_attack=False)
 
 
@@ -774,7 +866,7 @@ def page_threat_center():
         display_df = df_threats[["id", "timestamp", "attack_type", "source_ip", "confidence", "risk_level", "action"]].head(25).copy()
         display_df["confidence"] = display_df["confidence"].apply(lambda x: f"{float(x)*100:.1f}%")
         display_df.columns = ["ID", "TIME", "THREAT", "SOURCE", "CONFIDENCE", "RISK", "ACTION"]
-        st.dataframe(display_df, use_container_width=True, hide_index=True, height=350)
+        st.dataframe(display_df, width="stretch", hide_index=True, height=350)
 
     selected_event = next((e for e in threat_events if e["id"] == selected_id), threat_events[0])
     is_curr_blocked = any(b["ip_address"] == selected_event["source_ip"] for b in blocked_list)
@@ -809,12 +901,12 @@ def page_threat_center():
         )
 
         if is_curr_blocked:
-            if st.button(f"Unblock Source IP ({selected_event['source_ip']})", use_container_width=True):
+            if st.button(f"Unblock Source IP ({selected_event['source_ip']})", width="stretch"):
                 if toggle_ip_block(selected_event["source_ip"], block=False):
                     st.success(f"IP {selected_event['source_ip']} unblocked.")
                     st.rerun()
         else:
-            if st.button(f"Simulate Firewall Block ({selected_event['source_ip']})", type="primary", use_container_width=True):
+            if st.button(f"Simulate Firewall Block ({selected_event['source_ip']})", type="primary", width="stretch"):
                 if toggle_ip_block(selected_event["source_ip"], block=True, reason=f"SOC Block: {selected_event['attack_type']}"):
                     st.warning(f"IP {selected_event['source_ip']} blocked.")
                     st.rerun()
@@ -859,9 +951,9 @@ def page_secure_communication():
 
     action_col1, action_col2 = st.columns(2)
     with action_col1:
-        run_crypto = st.button("RUN ENCRYPT & VERIFY DECRYPT", type="primary", use_container_width=True)
+        run_crypto = st.button("RUN ENCRYPT & VERIFY DECRYPT", type="primary", width="stretch")
     with action_col2:
-        run_tamper = st.button("RUN TAMPER DETECTION TEST", use_container_width=True)
+        run_tamper = st.button("RUN TAMPER DETECTION TEST", width="stretch")
 
     if run_crypto or run_tamper:
         from crypto.key_exchange import ECDHParty
@@ -966,7 +1058,7 @@ def page_model_performance():
     with vis_col1:
         st.markdown(render_section_header("Confusion Matrix", "Per-class prediction breakdown", "Evaluation", "radar"), unsafe_allow_html=True)
         if cm_path:
-            st.image(str(cm_path), use_container_width=True)
+            st.image(str(cm_path), width="stretch")
         else:
             st.info("Confusion matrix image not available.")
 
@@ -974,7 +1066,7 @@ def page_model_performance():
     with vis_col2:
         st.markdown(render_section_header("Feature Importance", "Top flow dynamics weighted by model", "Explainability", "cpu"), unsafe_allow_html=True)
         if fi_path:
-            st.image(str(fi_path), use_container_width=True)
+            st.image(str(fi_path), width="stretch")
         else:
             st.info("Feature importance image not available.")
 
@@ -1045,7 +1137,7 @@ def page_system_logs():
     display_logs = df_logs[existing_cols].copy()
     display_logs.columns = [c.upper().replace("_", " ") for c in display_logs.columns]
 
-    st.dataframe(display_logs, use_container_width=True, hide_index=True, height=480)
+    st.dataframe(display_logs, width="stretch", hide_index=True, height=480)
 
     csv_data = df_logs.to_csv(index=False).encode("utf-8")
     st.download_button(
