@@ -861,6 +861,33 @@ ATTACK_INTELLIGENCE = {
     },
 }
 
+ATTACK_INTELLIGENCE["PortScan"] = ATTACK_INTELLIGENCE["Port Scan"]
+ATTACK_INTELLIGENCE["BruteForce"] = ATTACK_INTELLIGENCE["Brute Force"]
+ATTACK_INTELLIGENCE["Botnet"] = ATTACK_INTELLIGENCE["DDoS"]
+
+
+def get_attack_intel(attack_type: str) -> dict:
+    """Retrieve structured attack intelligence with resilient fallback and normalization."""
+    if not attack_type:
+        return ATTACK_INTELLIGENCE["Suspicious Traffic"]
+    norm = str(attack_type).strip()
+    if norm in ATTACK_INTELLIGENCE:
+        return ATTACK_INTELLIGENCE[norm]
+    up = norm.upper()
+    if "BENIGN" in up or "NORMAL" in up:
+        return ATTACK_INTELLIGENCE["BENIGN"]
+    if "PORT" in up:
+        return ATTACK_INTELLIGENCE["Port Scan"]
+    if "BRUTE" in up:
+        return ATTACK_INTELLIGENCE["Brute Force"]
+    if "DDOS" in up or "BOTNET" in up:
+        return ATTACK_INTELLIGENCE["DDoS"]
+    if "DOS" in up:
+        return ATTACK_INTELLIGENCE["DoS"]
+    if "SUSPICIOUS" in up or "JITTER" in up or "EVASION" in up:
+        return ATTACK_INTELLIGENCE["Suspicious Traffic"]
+    return ATTACK_INTELLIGENCE["Suspicious Traffic"]
+
 
 def render_attack_pop_message(
     attack_type: str,

@@ -55,44 +55,19 @@ def process_simulated_event(event_dict: dict) -> dict:
     session = get_session()
     try:
         # Check if this IP is already on the simulated blocklist
-        if _is_ip_blocked(session, src_ip):
-            # Event is rejected — IP was previously blocked
-            db_event = SecurityEvent(
-                source_ip=src_ip,
-                destination_ip=event_dict["destination_ip"],
-                source_port=event_dict["source_port"],
-                destination_port=event_dict["destination_port"],
-                protocol=event_dict["protocol"],
-                attack_type="BLOCKED",
-                confidence=1.0,
-                risk_level="HIGH",
-                risk_score=1.0,
-                action="BLOCK",
-                is_blocked=True,
-                notes=f"Traffic rejected — {src_ip} is on the simulated blocklist.",
-                data_source="SIMULATION",
-                simulation_scenario=event_dict["scenario"],
-            )
-            session.add(db_event)
-            session.commit()
-            session.refresh(db_event)
+        is_ip_already_blocked = _is_ip_blocked(session, src_ip)
 
-            return {
-                "db_event": db_event,
-                "was_blocked": True,
-                "prediction": {
-                    "predicted_class": "BLOCKED",
-                    "confidence": 1.0,
-                    "risk_level": "HIGH",
-                    "risk_score": 1.0,
-                    "action": "BLOCK",
-                    "is_attack": True,
-                    "explanation": f"Source {src_ip} is on the simulated blocklist. Traffic rejected.",
-                },
-            }
-
-        # Run real AI prediction
+        # Run real AI prediction for every single packet
         prediction = predictor.predict(event_dict["features"])
+
+        # Determine effective action and blocked state
+        was_blocked = is_ip_already_blocked or (prediction["action"] == "BLOCK")
+        effective_action = "BLOCK" if is_ip_already_blocked else prediction["action"]
+
+        if is_ip_already_blocked:
+            notes = f"Firewall Rule: Dropped {src_ip} traffic on active blocklist. [{prediction['explanation']}]"
+        else:
+            notes = prediction["explanation"]
 
         db_event = SecurityEvent(
             source_ip=src_ip,
@@ -104,9 +79,9 @@ def process_simulated_event(event_dict: dict) -> dict:
             confidence=prediction["confidence"],
             risk_level=prediction["risk_level"],
             risk_score=prediction["risk_score"],
-            action=prediction["action"],
-            is_blocked=(prediction["action"] == "BLOCK"),
-            notes=prediction["explanation"],
+            action=effective_action,
+            is_blocked=was_blocked,
+            notes=notes,
             data_source="SIMULATION",
             simulation_scenario=event_dict["scenario"],
         )
@@ -129,7 +104,7 @@ def process_simulated_event(event_dict: dict) -> dict:
 
         return {
             "db_event": db_event,
-            "was_blocked": False,
+            "was_blocked": was_blocked,
             "prediction": prediction,
         }
 

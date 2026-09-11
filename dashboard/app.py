@@ -51,6 +51,7 @@ from dashboard.theme import (
     render_network_node,
     get_plotly_soc_layout,
     ATTACK_INTELLIGENCE,
+    get_attack_intel,
 )
 from simulation.simulator import (
     generate_simulation_batch,
@@ -787,7 +788,7 @@ def page_attack_lab():
         intensity = st.selectbox("Intensity", ["LOW", "MEDIUM", "HIGH"], index=1)
 
     with ctrl_col4:
-        duration = st.slider("Duration (Sec)", min_value=5, max_value=30, value=10, step=5)
+        duration = st.slider("Duration (Sec)", min_value=5, max_value=30, value=5, step=5)
 
     start_simulation = st.button("START SIMULATION", type="primary", width="stretch")
 
@@ -818,6 +819,10 @@ def page_attack_lab():
             unsafe_allow_html=True,
         )
 
+        # Unblock simulation test IPs so each scenario has a clean slate
+        for test_ip in ["10.0.0.50", "10.0.0.51", "10.0.0.52", "10.0.0.53", "10.0.0.54", "10.0.0.55", "10.0.0.56"]:
+            toggle_ip_block(test_ip, block=False)
+
         chart_records = []
         threats_count = 0
         blocked_count = 0
@@ -833,6 +838,24 @@ def page_attack_lab():
             is_threat = (pred.get("predicted_class", "BENIGN") != "BENIGN")
             is_injected = (event.get("simulation_phase") == "SUDDEN_ATTACK")
 
+            raw_attack = pred.get("predicted_class") or db_event.attack_type or event.get("scenario")
+            if raw_attack in ("PortScan", "Port Scan"):
+                display_attack = "Port Scan"
+            elif raw_attack in ("BruteForce", "Brute Force"):
+                display_attack = "Brute Force"
+            elif raw_attack == "DoS":
+                display_attack = "DoS"
+            elif raw_attack in ("DDoS", "Botnet"):
+                display_attack = "DDoS"
+            elif raw_attack in ("Suspicious Traffic", "Suspicious"):
+                display_attack = "Suspicious Traffic"
+            elif raw_attack == "BENIGN":
+                display_attack = effective_scenario if is_threat else "Normal Traffic"
+            else:
+                display_attack = effective_scenario if (is_threat and raw_attack in ("BLOCKED", "", None)) else (raw_attack or effective_scenario)
+
+            atk_info = get_attack_intel(display_attack if is_threat else "BENIGN")
+
             if is_threat:
                 threats_count += 1
                 last_threat_data = {
@@ -847,11 +870,10 @@ def page_attack_lab():
                 blocked_count += 1
 
             # Trigger pop-up message (toast) with COMPLETE text - no slicing
-            if is_threat and db_event.attack_type not in has_toasted_attack:
-                has_toasted_attack.add(db_event.attack_type)
-                atk_info = ATTACK_INTELLIGENCE.get(db_event.attack_type, {})
+            if is_threat and display_attack not in has_toasted_attack:
+                has_toasted_attack.add(display_attack)
                 st.toast(
-                    f"🚨 **POP-UP ALERT: {db_event.attack_type.upper()} ATTACK**\n\n"
+                    f"🚨 **POP-UP ALERT: {display_attack.upper()} ATTACK**\n\n"
                     f"🔍 **What Kind:** {atk_info.get('what_kind', '')}\n\n"
                     f"⚡ **How It Got In:** {atk_info.get('how_it_got', '')}\n\n"
                     f"🎯 **Why It Happened:** {atk_info.get('why', '')}",
@@ -860,13 +882,12 @@ def page_attack_lab():
 
             # Minimal single-line telemetry status + complete full pop message banner
             if is_injected or is_threat:
-                atk_info = ATTACK_INTELLIGENCE.get(db_event.attack_type, {})
                 anim_slot.markdown(
                     f"""
                     <div class="soc-card" style="padding:0.6rem 0.9rem; border-left:2px solid {SEV_THREAT}; display:flex; justify-content:space-between; align-items:center;">
                         <div>
                             <span class="status-dot dot-red" style="margin-right:6px;"></span>
-                            <b style="color:{SEV_THREAT}; font-size:0.82rem;">🚨 ATTACK FLOW #{idx+1} of {total_events}: {db_event.attack_type.upper()}</b>
+                            <b style="color:{SEV_THREAT}; font-size:0.82rem;">🚨 ATTACK FLOW #{idx+1} of {total_events}: {display_attack.upper()}</b>
                             <span class="mono" style="font-size:0.75rem; color:{COLOR_GRAY}; margin-left:8px;">{db_event.source_ip} ➔ {db_event.destination_ip}</span>
                         </div>
                         <div style="display:flex; align-items:center; gap:8px;">
@@ -887,7 +908,7 @@ def page_attack_lab():
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.65rem; border-bottom:1px solid #222222; padding-bottom:0.5rem;">
                             <div style="display:flex; align-items:center; gap:8px;">
                                 <span class="status-dot dot-red"></span>
-                                <b style="color:#EF4444; font-size:0.9rem; letter-spacing:0.02em;">🚨 POP-UP MESSAGE — {db_event.attack_type.upper()} INCIDENT</b>
+                                <b style="color:#EF4444; font-size:0.9rem; letter-spacing:0.02em;">🚨 POP-UP MESSAGE — {display_attack.upper()} INCIDENT</b>
                             </div>
                             <span class="soc-badge" style="color:{SEV_THREAT}; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4);">
                                 ACTION: {db_event.action}
@@ -944,7 +965,7 @@ def page_attack_lab():
                 m1.metric("Inspected", idx + 1)
                 m2.metric("Threats", threats_count)
                 m3.metric("Blocked", blocked_count)
-                m4.metric("Classified", db_event.attack_type)
+                m4.metric("Classified", display_attack)
 
             df_live = pd.DataFrame(chart_records)
             fig_live = px.line(
@@ -953,16 +974,63 @@ def page_attack_lab():
                 y="risk_score",
                 color="phase",
                 color_discrete_map={"Normal": COLOR_AI_ACCENT, "Attack": SEV_THREAT},
-                labels={"flow": "Flow", "risk_score": "Risk"},
+                labels={"flow": "Flow Sequence", "risk_score": "Risk Score"},
             )
-            layout_live = get_plotly_soc_layout(height=200)
-            layout_live["yaxis"]["range"] = [0, 1.05]
+            layout_live = get_plotly_soc_layout(height=280)
+            layout_live["yaxis"]["range"] = [-0.02, 1.05]
+            layout_live["yaxis"]["title"] = dict(text="AI Anomaly Risk Score", font=dict(color=COLOR_GRAY, size=11))
+            layout_live["xaxis"]["title"] = dict(text="Inspected Flow Packet Sequence", font=dict(color=COLOR_GRAY, size=11))
             fig_live.update_layout(layout_live)
+            fig_live.update_traces(line=dict(width=2.5))
             chart_slot.plotly_chart(fig_live, width="stretch")
 
             time.sleep(sleep_interval)
 
         if threats_count > 0:
+            final_threat = effective_scenario
+            atk_info = get_attack_intel(final_threat)
+            what_kind_disp = atk_info.get('what_kind', '').replace('<', '&lt;').replace('>', '&gt;')
+            how_it_got_disp = atk_info.get('how_it_got', '').replace('<', '&lt;').replace('>', '&gt;')
+            why_disp = atk_info.get('why', '').replace('<', '&lt;').replace('>', '&gt;')
+            danger_disp = atk_info.get('danger', '').replace('<', '&lt;').replace('>', '&gt;')
+            popup_slot.markdown(
+                f"""
+                <div style="background:#0C0C0C; border:1px solid #EF4444; border-left:4px solid #EF4444; border-radius:8px; padding:1rem 1.25rem; margin:0.85rem 0; box-shadow:0 8px 32px rgba(0,0,0,0.8), 0 0 20px rgba(239,68,68,0.25);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.65rem; border-bottom:1px solid #222222; padding-bottom:0.5rem;">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span class="status-dot dot-red"></span>
+                            <b style="color:#EF4444; font-size:0.9rem; letter-spacing:0.02em;">🚨 POP-UP MESSAGE — {final_threat.upper()} INCIDENT</b>
+                        </div>
+                        <span class="soc-badge" style="color:{SEV_THREAT}; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4);">
+                            STATUS: MITIGATED & LOGGED
+                        </span>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:0.6rem; font-size:0.84rem;">
+                        <div>
+                            <div style="color:{COLOR_AI_ACCENT}; font-weight:600; font-size:0.76rem; text-transform:uppercase; margin-bottom:0.2rem;">🔍 WHAT KIND OF ATTACK IS THIS?</div>
+                            <div style="color:#FFFFFF; line-height:1.5;">{what_kind_disp}</div>
+                        </div>
+                        <div style="border-top:1px solid #1A1A1A; padding-top:0.45rem;">
+                            <div style="color:{COLOR_TECH}; font-weight:600; font-size:0.76rem; text-transform:uppercase; margin-bottom:0.2rem;">⚡ HOW IT GOT IN & TRANSMISSION PATH:</div>
+                            <div style="color:#DDDDDD; line-height:1.5;">{how_it_got_disp}</div>
+                        </div>
+                        <div style="border-top:1px solid #1A1A1A; padding-top:0.45rem;">
+                            <div style="color:{SEV_WARN}; font-weight:600; font-size:0.76rem; text-transform:uppercase; margin-bottom:0.2rem;">🎯 WHY IT HAPPENED & ADVERSARY INTENT:</div>
+                            <div style="color:#CCCCCC; line-height:1.5;">{why_disp} <span style="color:#FFA4A4;">({danger_disp})</span></div>
+                        </div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            with metrics_slot.container():
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Inspected", total_events)
+                m2.metric("Threats", threats_count)
+                m3.metric("Blocked", blocked_count)
+                m4.metric("Classified", final_threat)
+
             status_slot.markdown(
                 f'<div style="color:{SEV_THREAT}; font-size:0.78rem; font-family:\'JetBrains Mono\', monospace; margin-top:0.5rem;">'
                 f'⚠️ Simulation complete: {threats_count} threats detected and blocked out of {total_events} total events.'
@@ -1011,7 +1079,7 @@ def page_attack_lab():
     st.markdown('<div style="margin: 2rem 0 1rem 0; border-top: 1px solid var(--border-subtle);"></div>', unsafe_allow_html=True)
     st.markdown(render_section_header("Instant Attack Injection", "1-click sudden strike triggers with real-time popup intelligence", "Actions", "zap"), unsafe_allow_html=True)
 
-    pad_col1, pad_col2, pad_col3, pad_col4, pad_col5 = st.columns(5)
+    pad_col1, pad_col2, pad_col3, pad_col4, pad_col5, pad_col6 = st.columns(6)
     instant_slot = st.empty()
 
     def _trigger_instant_burst(attack_type: str, is_attack: bool = True):
@@ -1071,6 +1139,9 @@ def page_attack_lab():
         if st.button("Brute Force", width="stretch"):
             _trigger_instant_burst("Brute Force")
     with pad_col5:
+        if st.button("Suspicious Flow", width="stretch"):
+            _trigger_instant_burst("Suspicious Traffic")
+    with pad_col6:
         if st.button("Normal Flow", width="stretch"):
             _trigger_instant_burst("Normal Traffic", is_attack=False)
 
