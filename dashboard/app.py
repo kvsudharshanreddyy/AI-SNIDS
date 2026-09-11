@@ -525,45 +525,65 @@ def render_attack_modal_dialog(attack_type: str, event_data: dict = None):
     st.markdown('<div style="margin: 0.85rem 0;"></div>', unsafe_allow_html=True)
 
     # Detailed Cyber Defense Cards: WHAT KIND, HOW IT GOT IN, WHY IT HAPPENED
+    what_kind_txt = intel['what_kind'].replace('<', '&lt;').replace('>', '&gt;')
+    how_it_got_txt = intel['how_it_got'].replace('<', '&lt;').replace('>', '&gt;')
+    why_txt = intel['why'].replace('<', '&lt;').replace('>', '&gt;')
+    danger_txt = intel['danger'].replace('<', '&lt;').replace('>', '&gt;')
+    ai_det_txt = intel['ai_detection'].replace('<', '&lt;').replace('>', '&gt;')
+    mitig_txt = intel['mitigation'].replace('<', '&lt;').replace('>', '&gt;')
+
     st.markdown(
         f"""
-        <div style="display:flex; flex-direction:column; gap:0.75rem;">
-            <div style="background:#090909; border:1px solid #1E1E1E; border-left:3px solid {COLOR_AI_ACCENT}; border-radius:6px; padding:0.85rem 1rem;">
-                <div style="font-size:0.72rem; font-weight:600; color:{COLOR_AI_ACCENT}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.25rem;">
-                    🔍 WHAT KIND OF ATTACK IS THIS?
-                </div>
-                <div style="font-size:0.82rem; color:#FFFFFF; line-height:1.5;">
-                    {intel['what_kind']}
-                </div>
+        <div style="background:#090909; border:1px solid #1E1E1E; border-left:3px solid {COLOR_AI_ACCENT}; border-radius:6px; padding:0.85rem 1rem; margin-bottom:0.65rem;">
+            <div style="font-size:0.74rem; font-weight:600; color:{COLOR_AI_ACCENT}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.25rem;">
+                🔍 WHAT KIND OF ATTACK IS THIS?
             </div>
-
-            <div style="background:#090909; border:1px solid #1E1E1E; border-left:3px solid {COLOR_TECH}; border-radius:6px; padding:0.85rem 1rem;">
-                <div style="font-size:0.72rem; font-weight:600; color:{COLOR_TECH}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.25rem;">
-                    ⚡ HOW IT GOT IN & HOW IT WAS EXECUTED:
-                </div>
-                <div style="font-size:0.82rem; color:#DDDDDD; line-height:1.5;">
-                    {intel['how_it_got']}
-                </div>
+            <div style="font-size:0.84rem; color:#FFFFFF; line-height:1.55;">
+                {what_kind_txt}
             </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-            <div style="background:#090909; border:1px solid #1E1E1E; border-left:3px solid {SEV_WARN}; border-radius:6px; padding:0.85rem 1rem;">
-                <div style="font-size:0.72rem; font-weight:600; color:{SEV_WARN}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.25rem;">
-                    🎯 WHY DID THIS HAPPEN & ADVERSARY INTENT:
-                </div>
-                <div style="font-size:0.82rem; color:#DDDDDD; line-height:1.5;">
-                    {intel['why']}
-                    <div style="margin-top:0.35rem; color:#FFA4A4; font-size:0.78rem;"><b>Potential Damage:</b> {intel['danger']}</div>
-                </div>
+    st.markdown(
+        f"""
+        <div style="background:#090909; border:1px solid #1E1E1E; border-left:3px solid {COLOR_TECH}; border-radius:6px; padding:0.85rem 1rem; margin-bottom:0.65rem;">
+            <div style="font-size:0.74rem; font-weight:600; color:{COLOR_TECH}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.25rem;">
+                ⚡ HOW IT GOT IN & HOW IT WAS EXECUTED:
             </div>
+            <div style="font-size:0.84rem; color:#DDDDDD; line-height:1.55;">
+                {how_it_got_txt}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-            <div style="background:#090909; border:1px solid #1E1E1E; border-left:3px solid {SEV_SAFE}; border-radius:6px; padding:0.85rem 1rem;">
-                <div style="font-size:0.72rem; font-weight:600; color:{SEV_SAFE}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.25rem;">
-                    🛡️ HOW THE AI CAUGHT IT & AUTOMATED MITIGATION:
-                </div>
-                <div style="font-size:0.82rem; color:#DDDDDD; line-height:1.5;">
-                    <b>Detection Logic:</b> {intel['ai_detection']}<br>
-                    <b>Automated SOC Mitigation:</b> <span style="color:#FFFFFF; font-weight:600;">{intel['mitigation']}</span>
-                </div>
+    st.markdown(
+        f"""
+        <div style="background:#090909; border:1px solid #1E1E1E; border-left:3px solid {SEV_WARN}; border-radius:6px; padding:0.85rem 1rem; margin-bottom:0.65rem;">
+            <div style="font-size:0.74rem; font-weight:600; color:{SEV_WARN}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.25rem;">
+                🎯 WHY DID THIS HAPPEN & ADVERSARY INTENT:
+            </div>
+            <div style="font-size:0.84rem; color:#DDDDDD; line-height:1.55;">
+                {why_txt}
+                <div style="margin-top:0.35rem; color:#FFA4A4; font-size:0.78rem;"><b>Potential Damage:</b> {danger_txt}</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        f"""
+        <div style="background:#090909; border:1px solid #1E1E1E; border-left:3px solid {SEV_SAFE}; border-radius:6px; padding:0.85rem 1rem; margin-bottom:0.65rem;">
+            <div style="font-size:0.74rem; font-weight:600; color:{SEV_SAFE}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.25rem;">
+                🛡️ HOW THE AI CAUGHT IT & AUTOMATED MITIGATION:
+            </div>
+            <div style="font-size:0.84rem; color:#DDDDDD; line-height:1.55;">
+                <b>Detection Logic:</b> {ai_det_txt}<br>
+                <b>Automated SOC Mitigation:</b> <span style="color:#FFFFFF; font-weight:600;">{mitig_txt}</span>
             </div>
         </div>
         """,
@@ -857,6 +877,10 @@ def page_attack_lab():
                     """,
                     unsafe_allow_html=True,
                 )
+                what_kind_disp = atk_info.get('what_kind', '').replace('<', '&lt;').replace('>', '&gt;')
+                how_it_got_disp = atk_info.get('how_it_got', '').replace('<', '&lt;').replace('>', '&gt;')
+                why_disp = atk_info.get('why', '').replace('<', '&lt;').replace('>', '&gt;')
+                danger_disp = atk_info.get('danger', '').replace('<', '&lt;').replace('>', '&gt;')
                 popup_slot.markdown(
                     f"""
                     <div style="background:#0C0C0C; border:1px solid #EF4444; border-left:4px solid #EF4444; border-radius:8px; padding:1rem 1.25rem; margin:0.85rem 0; box-shadow:0 8px 32px rgba(0,0,0,0.8), 0 0 20px rgba(239,68,68,0.25);">
@@ -872,15 +896,15 @@ def page_attack_lab():
                         <div style="display:flex; flex-direction:column; gap:0.6rem; font-size:0.84rem;">
                             <div>
                                 <div style="color:{COLOR_AI_ACCENT}; font-weight:600; font-size:0.76rem; text-transform:uppercase; margin-bottom:0.2rem;">🔍 WHAT KIND OF ATTACK IS THIS?</div>
-                                <div style="color:#FFFFFF; line-height:1.5;">{atk_info.get('what_kind', '')}</div>
+                                <div style="color:#FFFFFF; line-height:1.5;">{what_kind_disp}</div>
                             </div>
                             <div style="border-top:1px solid #1A1A1A; padding-top:0.45rem;">
                                 <div style="color:{COLOR_TECH}; font-weight:600; font-size:0.76rem; text-transform:uppercase; margin-bottom:0.2rem;">⚡ HOW IT GOT IN & TRANSMISSION PATH:</div>
-                                <div style="color:#DDDDDD; line-height:1.5;">{atk_info.get('how_it_got', '')}</div>
+                                <div style="color:#DDDDDD; line-height:1.5;">{how_it_got_disp}</div>
                             </div>
                             <div style="border-top:1px solid #1A1A1A; padding-top:0.45rem;">
                                 <div style="color:{SEV_WARN}; font-weight:600; font-size:0.76rem; text-transform:uppercase; margin-bottom:0.2rem;">🎯 WHY IT HAPPENED & ADVERSARY INTENT:</div>
-                                <div style="color:#CCCCCC; line-height:1.5;">{atk_info.get('why', '')} <span style="color:#FFA4A4;">({atk_info.get('danger', '')})</span></div>
+                                <div style="color:#CCCCCC; line-height:1.5;">{why_disp} <span style="color:#FFA4A4;">({danger_disp})</span></div>
                             </div>
                         </div>
                     </div>
