@@ -272,15 +272,15 @@ def render_sidebar() -> str:
 
         st.markdown(
             f"""
-            <div style="font-size:0.7rem; color:{COLOR_GRAY}; display:flex; flex-direction:column; gap:0.45rem; padding-left:0.25rem;">
-                <div style="display:flex; align-items:center; justify-content:space-between;">
+            <div style="font-size:0.7rem; color:{COLOR_GRAY}; display:flex; flex-direction:column; gap:0.25rem;">
+                <div class="sidebar-status-row">
                     <span>AI Engine</span>
                     <span style="display:flex; align-items:center; gap:5px; color:{SEV_SAFE if ai_online else SEV_THREAT}; font-family:'JetBrains Mono', monospace; font-size:0.68rem;">
                         <span class="status-dot {'dot-green' if ai_online else 'dot-red'}"></span>
                         {'ONLINE' if ai_online else 'OFFLINE'}
                     </span>
                 </div>
-                <div style="display:flex; align-items:center; justify-content:space-between;">
+                <div class="sidebar-status-row">
                     <span>Database</span>
                     <span style="display:flex; align-items:center; gap:5px; color:{SEV_SAFE if db_online else SEV_THREAT}; font-family:'JetBrains Mono', monospace; font-size:0.68rem;">
                         <span class="status-dot {'dot-green' if db_online else 'dot-red'}"></span>
@@ -510,7 +510,7 @@ def page_attack_lab():
         with sc_cols[i]:
             st.markdown(
                 f"""
-                <div class="soc-card" style="padding:0.75rem; text-align:center; min-height:95px; border: 1px solid {border_color};">
+                <div class="soc-card soc-scenario-card" style="padding:0.75rem; text-align:center; min-height:95px; border: 1px solid {border_color};">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
                         <span class="status-dot {'dot-cyan' if is_sel else 'dot-green'}"></span>
                         {get_icon(sc_icon, size=14, color=COLOR_AI_ACCENT if is_sel else COLOR_MUTED)}
@@ -783,7 +783,7 @@ def page_threat_center():
         st.markdown(render_section_header("Incident Details", "Target telemetry & firewall mitigation", "Triage", "shield"), unsafe_allow_html=True)
         st.markdown(
             f"""
-            <div class="soc-card">
+            <div class="soc-card soc-card-threat">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
                     <span style="font-weight:600; font-size:1rem; color:{COLOR_WHITE};">
                         {selected_event['attack_type']}
@@ -995,7 +995,7 @@ def page_model_performance():
         with feat_cols[i % 4]:
             st.markdown(
                 f"""
-                <div class="soc-card" style="padding:0.4rem 0.6rem; margin-bottom:0.3rem; font-size:0.72rem;">
+                <div class="soc-card soc-feat-pill" style="padding:0.4rem 0.6rem; margin-bottom:0.3rem; font-size:0.72rem;">
                     <span class="mono" style="color:{COLOR_GRAY};">#{i+1:02d}</span> <span style="color:{COLOR_WHITE};">{feat}</span>
                 </div>
                 """,
