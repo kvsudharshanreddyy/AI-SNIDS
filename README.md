@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/badge/Python-3.14+-blue)](https://python.org)
 [![sklearn](https://img.shields.io/badge/scikit--learn-1.9+-orange)](https://scikit-learn.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.58+-red)](https://streamlit.io)
-[![Tests](https://img.shields.io/badge/Tests-35%20passed-green)]()
+[![Tests](https://img.shields.io/badge/Tests-56%20passed-green)]()
 
 ---
 
@@ -99,7 +99,9 @@ AI-SNIDS/
 │   └── models.py           ← SecurityEvent + BlockedIP ORM models
 │
 ├── dashboard/
-│   └── app.py              ← Streamlit dashboard (6 pages)
+│   └── app.py              ← Streamlit SOC dashboard (7 pages)
+│
+├── pics/                   ← High-resolution screenshots of UI, attack lab, & risk graphs
 │
 ├── data/
 │   ├── README.md           ← Dataset download instructions
@@ -107,8 +109,9 @@ AI-SNIDS/
 │
 └── tests/
     ├── test_crypto.py      ← 19 crypto tests
-    ├── test_ai.py          ← 13 AI/ML tests
-    └── test_e2e.py         ← 4 end-to-end pipeline tests
+    ├── test_ai.py          ← 12 AI/ML tests
+    ├── test_simulation.py  ← 21 virtual attack lab & simulation tests
+    └── test_e2e.py         ← 4 end-to-end pipeline tests (56 total passed)
 ```
 
 ## 6. Installation
