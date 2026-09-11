@@ -776,6 +776,7 @@ def page_attack_lab():
         effective_scenario = injected_attack if is_dynamic else selected_scenario
 
         anim_slot = st.empty()
+        popup_slot = st.empty()
         status_slot = st.empty()
         progress_slot = st.empty()
         metrics_slot = st.empty()
@@ -825,20 +826,21 @@ def page_attack_lab():
             if result["was_blocked"]:
                 blocked_count += 1
 
-            # Trigger pop-up message (toast) when attack phase begins or new threat occurs
+            # Trigger pop-up message (toast) with COMPLETE text - no slicing
             if is_threat and db_event.attack_type not in has_toasted_attack:
                 has_toasted_attack.add(db_event.attack_type)
                 atk_info = ATTACK_INTELLIGENCE.get(db_event.attack_type, {})
                 st.toast(
                     f"🚨 **POP-UP ALERT: {db_event.attack_type.upper()} ATTACK**\n\n"
-                    f"🔍 **What Kind:** {atk_info.get('what_kind', '')[:100]}...\n\n"
-                    f"⚡ **How It Got In:** {atk_info.get('how_it_got', '')[:100]}...\n\n"
-                    f"🎯 **Why:** {atk_info.get('why', '')[:80]}",
+                    f"🔍 **What Kind:** {atk_info.get('what_kind', '')}\n\n"
+                    f"⚡ **How It Got In:** {atk_info.get('how_it_got', '')}\n\n"
+                    f"🎯 **Why It Happened:** {atk_info.get('why', '')}",
                     icon="⚠️"
                 )
 
-            # Minimal single-line telemetry status (clean and unobtrusive - no bulky inline cards)
+            # Minimal single-line telemetry status + complete full pop message banner
             if is_injected or is_threat:
+                atk_info = ATTACK_INTELLIGENCE.get(db_event.attack_type, {})
                 anim_slot.markdown(
                     f"""
                     <div class="soc-card" style="padding:0.6rem 0.9rem; border-left:2px solid {SEV_THREAT}; display:flex; justify-content:space-between; align-items:center;">
@@ -855,7 +857,38 @@ def page_attack_lab():
                     """,
                     unsafe_allow_html=True,
                 )
+                popup_slot.markdown(
+                    f"""
+                    <div style="background:#0C0C0C; border:1px solid #EF4444; border-left:4px solid #EF4444; border-radius:8px; padding:1rem 1.25rem; margin:0.85rem 0; box-shadow:0 8px 32px rgba(0,0,0,0.8), 0 0 20px rgba(239,68,68,0.25);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.65rem; border-bottom:1px solid #222222; padding-bottom:0.5rem;">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <span class="status-dot dot-red"></span>
+                                <b style="color:#EF4444; font-size:0.9rem; letter-spacing:0.02em;">🚨 POP-UP MESSAGE — {db_event.attack_type.upper()} INCIDENT</b>
+                            </div>
+                            <span class="soc-badge" style="color:{SEV_THREAT}; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4);">
+                                ACTION: {db_event.action}
+                            </span>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:0.6rem; font-size:0.84rem;">
+                            <div>
+                                <div style="color:{COLOR_AI_ACCENT}; font-weight:600; font-size:0.76rem; text-transform:uppercase; margin-bottom:0.2rem;">🔍 WHAT KIND OF ATTACK IS THIS?</div>
+                                <div style="color:#FFFFFF; line-height:1.5;">{atk_info.get('what_kind', '')}</div>
+                            </div>
+                            <div style="border-top:1px solid #1A1A1A; padding-top:0.45rem;">
+                                <div style="color:{COLOR_TECH}; font-weight:600; font-size:0.76rem; text-transform:uppercase; margin-bottom:0.2rem;">⚡ HOW IT GOT IN & TRANSMISSION PATH:</div>
+                                <div style="color:#DDDDDD; line-height:1.5;">{atk_info.get('how_it_got', '')}</div>
+                            </div>
+                            <div style="border-top:1px solid #1A1A1A; padding-top:0.45rem;">
+                                <div style="color:{SEV_WARN}; font-weight:600; font-size:0.76rem; text-transform:uppercase; margin-bottom:0.2rem;">🎯 WHY IT HAPPENED & ADVERSARY INTENT:</div>
+                                <div style="color:#CCCCCC; line-height:1.5;">{atk_info.get('why', '')} <span style="color:#FFA4A4;">({atk_info.get('danger', '')})</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
             else:
+                popup_slot.empty()
                 anim_slot.markdown(
                     f"""
                     <div class="soc-card" style="padding:0.6rem 0.9rem; border-left:2px solid {SEV_SAFE}; display:flex; justify-content:space-between; align-items:center;">
@@ -965,9 +998,9 @@ def page_attack_lab():
             intel = ATTACK_INTELLIGENCE.get(attack_type, ATTACK_INTELLIGENCE.get("Port Scan", {}))
             st.toast(
                 f"🚨 **POP-UP ALERT: {attack_type.upper()} ATTACK**\n\n"
-                f"🔍 **What Kind:** {intel.get('what_kind', '')[:100]}...\n\n"
-                f"⚡ **How It Got In:** {intel.get('how_it_got', '')[:100]}...\n\n"
-                f"🎯 **Why:** {intel.get('why', '')[:80]}",
+                f"🔍 **What Kind:** {intel.get('what_kind', '')}\n\n"
+                f"⚡ **How It Got In:** {intel.get('how_it_got', '')}\n\n"
+                f"🎯 **Why It Happened:** {intel.get('why', '')}",
                 icon="⚠️"
             )
             st.session_state["modal_attack_type"] = attack_type

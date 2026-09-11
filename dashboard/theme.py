@@ -429,6 +429,31 @@ GLOBAL_CSS = f"""
         background: #333333;
     }}
 
+    /* Enhanced Toast Pop-up Notification: Wide, high-contrast, fully visible */
+    [data-testid="stToast"] {{
+        min-width: 520px !important;
+        max-width: 650px !important;
+        width: auto !important;
+        background: #0B0B0B !important;
+        border: 1px solid #EF4444 !important;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.95), 0 0 24px rgba(239, 68, 68, 0.3) !important;
+        border-radius: 8px !important;
+        padding: 1.15rem 1.35rem !important;
+        overflow: visible !important;
+    }}
+    [data-testid="stToast"] div {{
+        white-space: normal !important;
+        word-break: break-word !important;
+        overflow: visible !important;
+        font-size: 0.86rem !important;
+        line-height: 1.6 !important;
+        color: #EDEDED !important;
+    }}
+    [data-testid="stToast"] p {{
+        margin-bottom: 0.5rem !important;
+        white-space: normal !important;
+    }}
+
     /* Reusable Cards with Micro-Lift Hover */
     .min-card, .soc-card {{
         background-color: var(--card);
