@@ -51,7 +51,6 @@ from dashboard.theme import (
     render_network_node,
     get_plotly_soc_layout,
     ATTACK_INTELLIGENCE,
-    render_attack_pop_message,
 )
 from simulation.simulator import (
     generate_simulation_batch,
@@ -459,7 +458,7 @@ def page_live_monitoring():
 # PAGE 3: ATTACK LAB
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@st.dialog("🚨 THREAT INCIDENT POPUP — ATTACK DETAILS & HOW IT GOT IN", width="large")
+@st.dialog("🚨 ATTACK POP-UP MESSAGE — DETAILS & HOW IT GOT IN", width="large")
 def render_attack_modal_dialog(attack_type: str, event_data: dict = None):
     """Native modal popup dialog detailing what kind of attack occurred, how it got in, why, and AI defense."""
     norm_type = attack_type.strip()
@@ -660,9 +659,9 @@ def page_attack_lab():
 
     # Quick Open Pop Message Button for selected scenario
     if selected_scenario != "Normal Traffic":
-        pop_trig_col1, pop_trig_col2 = st.columns([3, 1])
+        pop_trig_col1, pop_trig_col2 = st.columns([2, 1])
         with pop_trig_col2:
-            if st.button(f"🚨 View Popup Intel: {selected_scenario}", width="stretch"):
+            if st.button(f"🚨 Pop-Up Attack Message: {selected_scenario}", width="stretch"):
                 st.session_state["modal_attack_type"] = selected_scenario
                 st.session_state["modal_event_data"] = {
                     "source_ip": "10.0.0.50",
@@ -826,34 +825,40 @@ def page_attack_lab():
             if result["was_blocked"]:
                 blocked_count += 1
 
-            # Trigger pop toast if attack phase begins or new threat occurs
+            # Trigger pop-up message (toast) when attack phase begins or new threat occurs
             if is_threat and db_event.attack_type not in has_toasted_attack:
                 has_toasted_attack.add(db_event.attack_type)
                 atk_info = ATTACK_INTELLIGENCE.get(db_event.attack_type, {})
                 st.toast(
-                    f"🚨 {db_event.attack_type.upper()} DETECTED!\n{atk_info.get('why', 'Adversary activity detected!')[:85]}...",
+                    f"🚨 **POP-UP ALERT: {db_event.attack_type.upper()} ATTACK**\n\n"
+                    f"🔍 **What Kind:** {atk_info.get('what_kind', '')[:100]}...\n\n"
+                    f"⚡ **How It Got In:** {atk_info.get('how_it_got', '')[:100]}...\n\n"
+                    f"🎯 **Why:** {atk_info.get('why', '')[:80]}",
                     icon="⚠️"
                 )
 
-            # Render Attack Pop message or clean benign ticker
+            # Minimal single-line telemetry status (clean and unobtrusive - no bulky inline cards)
             if is_injected or is_threat:
                 anim_slot.markdown(
-                    render_attack_pop_message(
-                        attack_type=db_event.attack_type,
-                        source_ip=db_event.source_ip,
-                        destination_ip=db_event.destination_ip,
-                        confidence=db_event.confidence,
-                        risk_level=db_event.risk_level,
-                        action=db_event.action,
-                        is_injected=is_injected,
-                        extra_note=f"Simulated flow #{idx+1} of {total_events} · Duration: {event['features'].get('Flow Duration', 0)}µs"
-                    ),
+                    f"""
+                    <div class="soc-card" style="padding:0.6rem 0.9rem; border-left:2px solid {SEV_THREAT}; display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <span class="status-dot dot-red" style="margin-right:6px;"></span>
+                            <b style="color:{SEV_THREAT}; font-size:0.82rem;">🚨 ATTACK FLOW #{idx+1} of {total_events}: {db_event.attack_type.upper()}</b>
+                            <span class="mono" style="font-size:0.75rem; color:{COLOR_GRAY}; margin-left:8px;">{db_event.source_ip} ➔ {db_event.destination_ip}</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span class="mono" style="color:{SEV_THREAT}; font-size:0.75rem;">Risk: {db_event.risk_score:.2f}</span>
+                            <span class="soc-badge" style="color:{SEV_THREAT}; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3);">{db_event.action}</span>
+                        </div>
+                    </div>
+                    """,
                     unsafe_allow_html=True,
                 )
             else:
                 anim_slot.markdown(
                     f"""
-                    <div class="soc-card" style="padding:0.55rem 0.9rem; border-left:2px solid {SEV_SAFE}; display:flex; justify-content:space-between; align-items:center;">
+                    <div class="soc-card" style="padding:0.6rem 0.9rem; border-left:2px solid {SEV_SAFE}; display:flex; justify-content:space-between; align-items:center;">
                         <div>
                             <span class="status-dot dot-green" style="margin-right:6px;"></span>
                             <b style="color:{COLOR_WHITE}; font-size:0.82rem;">BENIGN FLOW #{idx+1} of {total_events}</b>
@@ -907,13 +912,43 @@ def page_attack_lab():
                 f'</div>',
                 unsafe_allow_html=True,
             )
+            st.session_state["last_sim_threat_type"] = effective_scenario
+            st.session_state["last_sim_threat_data"] = last_threat_data or {
+                "source_ip": "10.0.0.50",
+                "destination_ip": "10.0.0.100",
+                "confidence": 0.995,
+                "risk_level": "HIGH",
+                "action": "BLOCK",
+            }
         else:
+            st.session_state["last_sim_threat_type"] = None
             status_slot.markdown(
                 f'<div style="color:{SEV_SAFE}; font-size:0.78rem; font-family:\'JetBrains Mono\', monospace; margin-top:0.5rem;">'
                 f'✓ Simulation complete · All {total_events} events verified as legitimate benign traffic.'
                 f'</div>',
                 unsafe_allow_html=True,
             )
+
+    if st.session_state.get("last_sim_threat_type") and st.session_state.get("last_sim_threat_type") != "Normal Traffic":
+        sim_threat = st.session_state["last_sim_threat_type"]
+        sim_data = st.session_state.get("last_sim_threat_data", {})
+        st.markdown(
+            f"""
+            <div style="background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.3); border-radius:6px; padding:0.6rem 0.9rem; margin:0.75rem 0; display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <span class="status-dot dot-red" style="margin-right:6px;"></span>
+                    <b style="color:{COLOR_WHITE}; font-size:0.85rem;">ATTACK INCIDENT LOGGED: {sim_threat.upper()}</b>
+                    <span style="color:{COLOR_GRAY}; font-size:0.75rem; margin-left:8px;">Open pop-up message to view details and how it got in.</span>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        if st.button(f"🚨 Open Pop-Up Message: {sim_threat} Attack Details", key="btn_open_last_sim_popup", width="stretch"):
+            st.session_state["modal_attack_type"] = sim_threat
+            st.session_state["modal_event_data"] = sim_data
+            st.session_state["show_attack_modal"] = True
+            st.rerun()
 
     # Instant Attack Pad
     st.markdown('<div style="margin: 2rem 0 1rem 0; border-top: 1px solid var(--border-subtle);"></div>', unsafe_allow_html=True)
@@ -927,8 +962,12 @@ def page_attack_lab():
         latest = burst[-1]["db_event"]
 
         if is_attack:
+            intel = ATTACK_INTELLIGENCE.get(attack_type, ATTACK_INTELLIGENCE.get("Port Scan", {}))
             st.toast(
-                f"🚨 SUDDEN {attack_type.upper()} ATTACK INJECTED! Opening Pop Message...",
+                f"🚨 **POP-UP ALERT: {attack_type.upper()} ATTACK**\n\n"
+                f"🔍 **What Kind:** {intel.get('what_kind', '')[:100]}...\n\n"
+                f"⚡ **How It Got In:** {intel.get('how_it_got', '')[:100]}...\n\n"
+                f"🎯 **Why:** {intel.get('why', '')[:80]}",
                 icon="⚠️"
             )
             st.session_state["modal_attack_type"] = attack_type
