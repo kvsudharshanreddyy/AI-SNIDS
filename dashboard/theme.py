@@ -753,19 +753,23 @@ ATTACK_INTELLIGENCE = {
     "Port Scan": {
         "title": "Port Scanning Reconnaissance",
         "icon": "radar",
-        "what": "The adversary is sending a high-frequency sequence of TCP SYN probe packets across 13 destination ports (including 21, 22, 23, 80, 443, 3389) on Server B with near-zero backward payload and micro flow durations.",
-        "why": "Initial reconnaissance phase of the Cyber Kill Chain. The attacker is actively probing network daemons to discover unpatched listening ports and map server architecture before launching targeted exploits.",
-        "danger": "Exposes vulnerable software services, exposed management ports, and server operating system versions to the adversary.",
-        "ai_detection": "Random Forest identified high flow packet rates directed across multiple distinct ports with minimal payload transfer.",
+        "category": "Reconnaissance (MITRE ATT&CK T1046)",
+        "what_kind": "Automated sequential TCP service probe scanning across multiple listening daemons to identify open network gates without completing standard 3-way handshakes.",
+        "how_it_got": "The adversary at host 10.0.0.50 routed through the gateway (10.0.0.1) directly to Server B (10.0.0.100), dispatching a rapid burst of TCP SYN packets across 13 ports (21, 22, 23, 25, 53, 80, 110, 135, 139, 443, 445, 3389, 8080) with micro flow duration (<50µs) and zero response payload.",
+        "why": "Initial Cyber Kill Chain discovery. The attacker maps active operating system daemons and unpatched network services to identify exploitable entry points before launching targeted payloads.",
+        "danger": "Exposes vulnerable service versions, management portals, and internal host architecture to the adversary.",
+        "ai_detection": "Random Forest flagged extreme Flow Packets/s, zero backward packets, and short flow duration with 99.8% confidence.",
         "mitigation": "Automated Perimeter Defense: Ingress traffic from 10.0.0.50 dropped immediately; source IP quarantined.",
         "severity": "HIGH",
     },
     "DoS": {
         "title": "Denial of Service (Volumetric Flood)",
         "icon": "activity",
-        "what": "A single malicious host (10.0.0.50) is blasting an overwhelming surge of rapid TCP requests directly at Server B's HTTP port (80) with minimal inter-arrival times.",
-        "why": "Resource starvation attack. The adversary is attempting to exhaust Server B's CPU, memory pool, and TCP socket connection backlog to cause complete service unresponsiveness.",
-        "danger": "Legitimate users (Client A) are starved of connectivity, leading to catastrophic denial of service and downtime.",
+        "category": "Impact & Availability Disruption (MITRE ATT&CK T1498)",
+        "what_kind": "Single-source volumetric TCP flood designed to exhaust server processing capacity, socket backlogs, and memory buffers.",
+        "how_it_got": "Host 10.0.0.50 opened an aggressive, unthrottled packet stream directly into Server B's HTTP port (80) with minimal inter-arrival times (<10µs), filling the server's TCP connection backlog and starving CPU worker threads.",
+        "why": "Resource exhaustion attack aimed at rendering Server B totally unresponsive to legitimate users (Client A at 10.0.0.10), causing critical application downtime.",
+        "danger": "Total service blackout, dropped customer sessions, and server operating system kernel panic.",
         "ai_detection": "Extreme Flow Packets/s combined with near-zero Flow Inter-Arrival Times (IAT Min/Mean) and concentrated target IP/port.",
         "mitigation": "Rate-limiting activated: Source IP isolated; stateful connection drop applied at the gateway router.",
         "severity": "CRITICAL",
@@ -773,9 +777,11 @@ ATTACK_INTELLIGENCE = {
     "DDoS": {
         "title": "Distributed Denial of Service (Botnet Swarm)",
         "icon": "zap",
-        "what": "Multiple coordinated botnet worker nodes (10.0.0.51 through 10.0.0.56) are simultaneously flooding Server B from multiple distinct source addresses.",
-        "why": "Volumetric distributed swarm engineered to saturate upstream routing bandwidth and overwhelm both firewall state tables and Server B simultaneously.",
-        "danger": "Bypasses single-IP rate limiters and creates massive network congestion across the entire virtual perimeter.",
+        "category": "Distributed Infrastructure Disruption (MITRE ATT&CK T1498.001)",
+        "what_kind": "Coordinated multi-origin volumetric flood launched simultaneously from a synchronized botnet swarm of compromised hosts.",
+        "how_it_got": "6 coordinated botnet IP addresses (10.0.0.51 through 10.0.0.56) converged their attacks simultaneously on Server B (10.0.0.100) Port 80, flooding the gateway router and saturating link bandwidth while evading single-IP rate limits.",
+        "why": "Engineered to overwhelm upstream perimeter routers and bring down mission-critical server infrastructure with aggregate volumetric traffic that cannot be blocked by single-source rules.",
+        "danger": "Catastrophic network perimeter congestion, gateway buffer overruns, and multi-tenant service failure.",
         "ai_detection": "Correlated flow bursts exhibiting synchronized inter-arrival rates across distinct source IPs targeting port 80.",
         "mitigation": "Subnet-wide perimeter defense: Distributed drop policies activated; all identified botnet nodes blocked simultaneously.",
         "severity": "CRITICAL",
@@ -783,9 +789,11 @@ ATTACK_INTELLIGENCE = {
     "Brute Force": {
         "title": "Authentication Brute Force (Credential Abuse)",
         "icon": "lock",
-        "what": "The attacker is repeatedly issuing automated credential login attempts against authentication endpoints (Port 22 SSH and Port 21 FTP) using dictionary wordlists.",
-        "why": "Credential guessing / password spraying. The adversary is attempting to breach administrative shell credentials to gain unauthorized remote access.",
-        "danger": "Risk of root or administrator system takeover, unauthorized lateral movement, and sensitive database compromise.",
+        "category": "Credential Access (MITRE ATT&CK T1110)",
+        "what_kind": "Automated high-velocity dictionary attack attempting to guess administrative credentials against remote access daemons.",
+        "how_it_got": "Adversary host 10.0.0.50 connected across the virtual network to Server B (10.0.0.100), bombarding Port 22 (SSH) and Port 21 (FTP) with automated credential dictionary attempts using rapid short-lived TCP connection cycles.",
+        "why": "Credential guessing / password spraying to obtain unauthorized root or administrative shell credentials and seize total system control.",
+        "danger": "Unauthorized system takeover, data exfiltration, and internal lateral movement across enterprise subnets.",
         "ai_detection": "Repetitive short-lived TCP sessions targeting authentication ports with identical packet lengths and failure rates.",
         "mitigation": "Adaptive fail2ban lockout: Host IP 10.0.0.50 blocked on all administrative ports immediately.",
         "severity": "HIGH",
@@ -793,9 +801,11 @@ ATTACK_INTELLIGENCE = {
     "Suspicious Traffic": {
         "title": "Anomalous Traffic (Stealth Jitter / Evasion Probe)",
         "icon": "alert-triangle",
-        "what": "Traffic stream exhibiting artificial timing delays (jitter), fluctuating packet lengths, and mixed protocol behavior alternating between web browsing and scanning.",
-        "why": "Evasion technique. The attacker introduces timing jitter and pseudo-benign requests to stay under static detection thresholds and confuse signature-based rules.",
-        "danger": "Indicates advanced covert reconnaissance, stealth data exfiltration staging, or active evasion testing against the defense system.",
+        "category": "Defense Evasion (MITRE ATT&CK T1027)",
+        "what_kind": "Obfuscated network flow incorporating artificial timing delays (jitter) and mixed protocol behavior designed to evade static rule-based thresholds.",
+        "how_it_got": "Host 10.0.0.50 injected artificial timing delays (varying between 50ms and 500ms) between probe packets directed at ports 80 and 443, blending benign web browsing requests with non-standard packet sizes to stay under static threshold alarms.",
+        "why": "To test detection threshold boundaries, establish a low-and-slow command & control (C2) channel, or stage covert data exfiltration without tripping threshold firewalls.",
+        "danger": "Covert reconnaissance, persistence testing, and silent exfiltration evasion.",
         "ai_detection": "Feature anomaly: Statistical variance in Flow IAT Std and Max Packet Length deviating significantly from standard benign clusters.",
         "mitigation": "Flow tagged for deep inspection; origin placed under heightened continuous behavioral monitoring.",
         "severity": "MEDIUM",
@@ -803,7 +813,9 @@ ATTACK_INTELLIGENCE = {
     "BENIGN": {
         "title": "Legitimate Traffic (Standard Flow)",
         "icon": "shield-check",
-        "what": "Normal HTTP (Port 80) and HTTPS (Port 443) communication between authorized Client A (10.0.0.10) and Server B (10.0.0.100).",
+        "category": "Normal Operational Baseline",
+        "what_kind": "Authorized enterprise application communication adhering strictly to RFC TCP protocol standards.",
+        "how_it_got": "Standard three-way TCP handshake (SYN, SYN-ACK, ACK) initiated by authorized Client A (10.0.0.10) to Server B (10.0.0.100) on Port 80/443 with normal balanced packet exchanges.",
         "why": "Standard day-to-day enterprise operations conforming to standard TCP three-way handshakes and valid protocol payloads.",
         "danger": "None — fully authenticated and normal operational telemetry.",
         "ai_detection": "Flow characteristics align precisely with baseline training distribution (balanced packet ratios, normal IAT).",
@@ -813,7 +825,9 @@ ATTACK_INTELLIGENCE = {
     "Normal Traffic": {
         "title": "Legitimate Traffic (Standard Flow)",
         "icon": "shield-check",
-        "what": "Normal HTTP (Port 80) and HTTPS (Port 443) communication between authorized Client A (10.0.0.10) and Server B (10.0.0.100).",
+        "category": "Normal Operational Baseline",
+        "what_kind": "Authorized enterprise application communication adhering strictly to RFC TCP protocol standards.",
+        "how_it_got": "Standard three-way TCP handshake (SYN, SYN-ACK, ACK) initiated by authorized Client A (10.0.0.10) to Server B (10.0.0.100) on Port 80/443 with normal balanced packet exchanges.",
         "why": "Standard day-to-day enterprise operations conforming to standard TCP three-way handshakes and valid protocol payloads.",
         "danger": "None — fully authenticated and normal operational telemetry.",
         "ai_detection": "Flow characteristics align precisely with baseline training distribution (balanced packet ratios, normal IAT).",
@@ -870,6 +884,57 @@ def render_attack_pop_message(
         f'{extra_note}</div>'
     ) if extra_note else ""
 
+    if is_safe:
+        body_grid = f"""
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem; margin:0.75rem 0; background:#050505; border:1px solid #161616; border-radius:6px; padding:0.85rem;">
+            <div>
+                <div style="font-size:0.68rem; font-weight:600; color:{SEV_SAFE}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.25rem;">
+                    TRAFFIC PROFILE
+                </div>
+                <div style="font-size:0.77rem; color:#CCCCCC; line-height:1.45;">
+                    {intel['what_kind']}
+                </div>
+            </div>
+            <div>
+                <div style="font-size:0.68rem; font-weight:600; color:{COLOR_AI_ACCENT}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.25rem;">
+                    OPERATIONAL PURPOSE
+                </div>
+                <div style="font-size:0.77rem; color:#CCCCCC; line-height:1.45;">
+                    {intel['why']}
+                </div>
+            </div>
+        </div>
+        """
+    else:
+        body_grid = f"""
+        <div style="display:flex; flex-direction:column; gap:0.6rem; margin:0.75rem 0; background:#050505; border:1px solid #161616; border-radius:6px; padding:0.85rem;">
+            <div>
+                <div style="font-size:0.68rem; font-weight:600; color:{COLOR_AI_ACCENT}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.2rem;">
+                    🔍 WHAT KIND OF ATTACK IS THIS?
+                </div>
+                <div style="font-size:0.77rem; color:#EEEEEE; line-height:1.4;">
+                    {intel['what_kind']}
+                </div>
+            </div>
+            <div style="border-top:1px solid #141414; padding-top:0.5rem;">
+                <div style="font-size:0.68rem; font-weight:600; color:{COLOR_TECH}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.2rem;">
+                    ⚡ HOW IT GOT IN / HOW IT WAS EXECUTED:
+                </div>
+                <div style="font-size:0.77rem; color:#CCCCCC; line-height:1.4;">
+                    {intel['how_it_got']}
+                </div>
+            </div>
+            <div style="border-top:1px solid #141414; padding-top:0.5rem;">
+                <div style="font-size:0.68rem; font-weight:600; color:{SEV_WARN}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.2rem;">
+                    🎯 WHY IT HAPPENED & ADVERSARY INTENT:
+                </div>
+                <div style="font-size:0.77rem; color:#CCCCCC; line-height:1.4;">
+                    {intel['why']} <span style="color:#FF6B6B;">({intel['danger']})</span>
+                </div>
+            </div>
+        </div>
+        """
+
     return f"""
     <div class="{card_class}">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; border-bottom:1px solid #1C1C1C; padding-bottom:0.5rem;">
@@ -880,6 +945,7 @@ def render_attack_pop_message(
                 </span>
             </div>
             <div style="display:flex; align-items:center; gap:0.5rem;">
+                <span class="mono" style="font-size:0.68rem; color:{COLOR_MUTED};">{intel.get('category', '')}</span>
                 {render_severity_badge(risk_level)}
                 <span class="soc-badge" style="color:{action_color}; background:{action_bg}; border:1px solid {action_color}40;">
                     {action}
@@ -901,24 +967,7 @@ def render_attack_pop_message(
             </div>
         </div>
 
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem; margin:0.75rem 0; background:#050505; border:1px solid #161616; border-radius:6px; padding:0.85rem;">
-            <div>
-                <div style="font-size:0.68rem; font-weight:600; color:{COLOR_AI_ACCENT}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.25rem;">
-                    WHAT IS THIS ATTACK?
-                </div>
-                <div style="font-size:0.77rem; color:#CCCCCC; line-height:1.45;">
-                    {intel['what']}
-                </div>
-            </div>
-            <div>
-                <div style="font-size:0.68rem; font-weight:600; color:{SEV_WARN if not is_safe else SEV_SAFE}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.25rem;">
-                    WHY IT HAPPENED & THREAT REASONING
-                </div>
-                <div style="font-size:0.77rem; color:#CCCCCC; line-height:1.45;">
-                    {intel['why']}
-                </div>
-            </div>
-        </div>
+        {body_grid}
 
         {note_html}
 

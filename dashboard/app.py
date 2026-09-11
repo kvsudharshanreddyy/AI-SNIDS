@@ -459,8 +459,138 @@ def page_live_monitoring():
 # PAGE 3: ATTACK LAB
 # ═══════════════════════════════════════════════════════════════════════════════
 
+@st.dialog("🚨 THREAT INCIDENT POPUP — ATTACK DETAILS & HOW IT GOT IN", width="large")
+def render_attack_modal_dialog(attack_type: str, event_data: dict = None):
+    """Native modal popup dialog detailing what kind of attack occurred, how it got in, why, and AI defense."""
+    norm_type = attack_type.strip()
+    if "PORT" in norm_type.upper():
+        norm_type = "Port Scan"
+    elif "BRUTE" in norm_type.upper():
+        norm_type = "Brute Force"
+    elif "DDOS" in norm_type.upper():
+        norm_type = "DDoS"
+    elif "DOS" in norm_type.upper():
+        norm_type = "DoS"
+    elif "SUSPICIOUS" in norm_type.upper():
+        norm_type = "Suspicious Traffic"
+    elif "BENIGN" in norm_type.upper() or "NORMAL" in norm_type.upper():
+        norm_type = "BENIGN"
+
+    intel = ATTACK_INTELLIGENCE.get(norm_type, ATTACK_INTELLIGENCE["Suspicious Traffic"])
+    is_safe = (norm_type == "BENIGN")
+
+    ev = event_data or {}
+    src_ip = ev.get("source_ip", "10.0.0.50" if not is_safe else "10.0.0.10")
+    dst_ip = ev.get("destination_ip", "10.0.0.100")
+    confidence = float(ev.get("confidence", 0.992))
+    risk_level = ev.get("risk_level", intel["severity"])
+    action = ev.get("action", "ALLOW" if is_safe else "BLOCK")
+
+    # Modal Header
+    st.markdown(
+        f"""
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #222222; padding-bottom:0.75rem; margin-bottom:1rem;">
+            <div>
+                <span class="status-dot {'dot-green' if is_safe else 'dot-red'}" style="margin-right:6px;"></span>
+                <span class="mono" style="font-size:0.72rem; color:{COLOR_GRAY}; letter-spacing:0.04em;">
+                    {intel.get('category', 'CYBERSECURITY INCIDENT')}
+                </span>
+                <div style="font-size:1.35rem; font-weight:700; color:{COLOR_WHITE}; margin-top:0.25rem;">
+                    {intel['title']}
+                </div>
+            </div>
+            <div style="text-align:right;">
+                {render_severity_badge(risk_level)}
+                <div style="margin-top:0.35rem;">
+                    <span class="soc-badge" style="color:{SEV_SAFE if is_safe else SEV_THREAT}; background:{'rgba(34,197,94,0.1)' if is_safe else 'rgba(239,68,68,0.1)'}; border:1px solid {'rgba(34,197,94,0.3)' if is_safe else 'rgba(239,68,68,0.3)'};">
+                        ACTION: {action}
+                    </span>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Telemetry KPI Strip
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        st.markdown(f'<div class="soc-card" style="padding:0.6rem; text-align:center;"><div style="font-size:0.62rem; color:{COLOR_MUTED};">ORIGIN IP</div><div class="mono" style="font-size:0.85rem; color:{COLOR_WHITE}; font-weight:600;">{src_ip}</div></div>', unsafe_allow_html=True)
+    with k2:
+        st.markdown(f'<div class="soc-card" style="padding:0.6rem; text-align:center;"><div style="font-size:0.62rem; color:{COLOR_MUTED};">TARGET IP</div><div class="mono" style="font-size:0.85rem; color:{COLOR_WHITE}; font-weight:600;">{dst_ip}</div></div>', unsafe_allow_html=True)
+    with k3:
+        st.markdown(f'<div class="soc-card" style="padding:0.6rem; text-align:center;"><div style="font-size:0.62rem; color:{COLOR_MUTED};">AI CONFIDENCE</div><div class="mono" style="font-size:0.85rem; color:{COLOR_AI_ACCENT}; font-weight:600;">{confidence*100:.1f}%</div></div>', unsafe_allow_html=True)
+    with k4:
+        st.markdown(f'<div class="soc-card" style="padding:0.6rem; text-align:center;"><div style="font-size:0.62rem; color:{COLOR_MUTED};">FIREWALL DEFENSE</div><div class="mono" style="font-size:0.85rem; color:{SEV_SAFE if is_safe else SEV_CRITICAL}; font-weight:600;">{action}</div></div>', unsafe_allow_html=True)
+
+    st.markdown('<div style="margin: 0.85rem 0;"></div>', unsafe_allow_html=True)
+
+    # Detailed Cyber Defense Cards: WHAT KIND, HOW IT GOT IN, WHY IT HAPPENED
+    st.markdown(
+        f"""
+        <div style="display:flex; flex-direction:column; gap:0.75rem;">
+            <div style="background:#090909; border:1px solid #1E1E1E; border-left:3px solid {COLOR_AI_ACCENT}; border-radius:6px; padding:0.85rem 1rem;">
+                <div style="font-size:0.72rem; font-weight:600; color:{COLOR_AI_ACCENT}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.25rem;">
+                    🔍 WHAT KIND OF ATTACK IS THIS?
+                </div>
+                <div style="font-size:0.82rem; color:#FFFFFF; line-height:1.5;">
+                    {intel['what_kind']}
+                </div>
+            </div>
+
+            <div style="background:#090909; border:1px solid #1E1E1E; border-left:3px solid {COLOR_TECH}; border-radius:6px; padding:0.85rem 1rem;">
+                <div style="font-size:0.72rem; font-weight:600; color:{COLOR_TECH}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.25rem;">
+                    ⚡ HOW IT GOT IN & HOW IT WAS EXECUTED:
+                </div>
+                <div style="font-size:0.82rem; color:#DDDDDD; line-height:1.5;">
+                    {intel['how_it_got']}
+                </div>
+            </div>
+
+            <div style="background:#090909; border:1px solid #1E1E1E; border-left:3px solid {SEV_WARN}; border-radius:6px; padding:0.85rem 1rem;">
+                <div style="font-size:0.72rem; font-weight:600; color:{SEV_WARN}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.25rem;">
+                    🎯 WHY DID THIS HAPPEN & ADVERSARY INTENT:
+                </div>
+                <div style="font-size:0.82rem; color:#DDDDDD; line-height:1.5;">
+                    {intel['why']}
+                    <div style="margin-top:0.35rem; color:#FFA4A4; font-size:0.78rem;"><b>Potential Damage:</b> {intel['danger']}</div>
+                </div>
+            </div>
+
+            <div style="background:#090909; border:1px solid #1E1E1E; border-left:3px solid {SEV_SAFE}; border-radius:6px; padding:0.85rem 1rem;">
+                <div style="font-size:0.72rem; font-weight:600; color:{SEV_SAFE}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.25rem;">
+                    🛡️ HOW THE AI CAUGHT IT & AUTOMATED MITIGATION:
+                </div>
+                <div style="font-size:0.82rem; color:#DDDDDD; line-height:1.5;">
+                    <b>Detection Logic:</b> {intel['ai_detection']}<br>
+                    <b>Automated SOC Mitigation:</b> <span style="color:#FFFFFF; font-weight:600;">{intel['mitigation']}</span>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown('<div style="margin: 1rem 0 0.5rem 0;"></div>', unsafe_allow_html=True)
+    b_col1, b_col2 = st.columns([3, 1])
+    with b_col2:
+        if st.button("Close Pop Message", width="stretch"):
+            st.session_state["show_attack_modal"] = False
+            st.rerun()
+
+
 def page_attack_lab():
     render_top_bar("Attack Lab", "Simulate network intrusions and observe autonomous AI response")
+
+    if "show_attack_modal" not in st.session_state:
+        st.session_state["show_attack_modal"] = False
+    if "modal_attack_type" not in st.session_state:
+        st.session_state["modal_attack_type"] = "Port Scan"
+    if "modal_event_data" not in st.session_state:
+        st.session_state["modal_event_data"] = {}
+
+    if st.session_state["show_attack_modal"]:
+        render_attack_modal_dialog(st.session_state["modal_attack_type"], st.session_state["modal_event_data"])
 
     # Minimal Virtual Route Line
     st.markdown(
@@ -527,6 +657,22 @@ def page_attack_lab():
                 """,
                 unsafe_allow_html=True,
             )
+
+    # Quick Open Pop Message Button for selected scenario
+    if selected_scenario != "Normal Traffic":
+        pop_trig_col1, pop_trig_col2 = st.columns([3, 1])
+        with pop_trig_col2:
+            if st.button(f"🚨 View Popup Intel: {selected_scenario}", width="stretch"):
+                st.session_state["modal_attack_type"] = selected_scenario
+                st.session_state["modal_event_data"] = {
+                    "source_ip": "10.0.0.50",
+                    "destination_ip": "10.0.0.100",
+                    "confidence": 0.995,
+                    "risk_level": "HIGH",
+                    "action": "BLOCK",
+                }
+                st.session_state["show_attack_modal"] = True
+                st.rerun()
 
     with st.expander("ℹ️ Threat Knowledge Base — What each attack is and why it happens", expanded=False):
         st.markdown(
@@ -657,6 +803,7 @@ def page_attack_lab():
         blocked_count = 0
         sleep_interval = max(duration / total_events, 0.02) if total_events > 0 else 0.05
         has_toasted_attack = set()
+        last_threat_data = None
 
         for idx, event in enumerate(events_batch):
             result = process_simulated_event(event)
@@ -668,6 +815,14 @@ def page_attack_lab():
 
             if is_threat:
                 threats_count += 1
+                last_threat_data = {
+                    "source_ip": db_event.source_ip,
+                    "destination_ip": db_event.destination_ip,
+                    "confidence": db_event.confidence,
+                    "risk_level": db_event.risk_level,
+                    "action": db_event.action,
+                    "risk_score": db_event.risk_score,
+                }
             if result["was_blocked"]:
                 blocked_count += 1
 
@@ -680,7 +835,7 @@ def page_attack_lab():
                     icon="⚠️"
                 )
 
-            # Render rich Attack Intelligence Pop Message Card while attack is happening
+            # Render Attack Pop message or clean benign ticker
             if is_injected or is_threat:
                 anim_slot.markdown(
                     render_attack_pop_message(
@@ -691,22 +846,26 @@ def page_attack_lab():
                         risk_level=db_event.risk_level,
                         action=db_event.action,
                         is_injected=is_injected,
-                        extra_note=f"Simulated flow #{idx+1} of {total_events} · Flow Duration: {event['features'].get('Flow Duration', 0)}µs"
+                        extra_note=f"Simulated flow #{idx+1} of {total_events} · Duration: {event['features'].get('Flow Duration', 0)}µs"
                     ),
                     unsafe_allow_html=True,
                 )
             else:
                 anim_slot.markdown(
-                    render_attack_pop_message(
-                        attack_type="BENIGN",
-                        source_ip=db_event.source_ip,
-                        destination_ip=db_event.destination_ip,
-                        confidence=db_event.confidence,
-                        risk_level=db_event.risk_level,
-                        action=db_event.action,
-                        is_injected=False,
-                        extra_note=f"Simulated flow #{idx+1} of {total_events} · Clean HTTP/HTTPS Web Flow"
-                    ),
+                    f"""
+                    <div class="soc-card" style="padding:0.55rem 0.9rem; border-left:2px solid {SEV_SAFE}; display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <span class="status-dot dot-green" style="margin-right:6px;"></span>
+                            <b style="color:{COLOR_WHITE}; font-size:0.82rem;">BENIGN FLOW #{idx+1} of {total_events}</b>
+                            <span class="mono" style="font-size:0.75rem; color:{COLOR_GRAY}; margin-left:8px;">{db_event.source_ip} ➔ {db_event.destination_ip}</span>
+                            <span style="font-size:0.72rem; color:{COLOR_MUTED}; margin-left:8px;">(Normal HTTP/HTTPS Web Flow)</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span class="mono" style="color:{COLOR_AI_ACCENT}; font-size:0.75rem;">Confidence: {db_event.confidence*100:.1f}%</span>
+                            <span class="soc-badge" style="color:{SEV_SAFE}; background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.3);">ALLOW</span>
+                        </div>
+                    </div>
+                    """,
                     unsafe_allow_html=True,
                 )
 
@@ -741,16 +900,24 @@ def page_attack_lab():
 
             time.sleep(sleep_interval)
 
-        status_slot.markdown(
-            f'<div style="color:{SEV_SAFE}; font-size:0.78rem; font-family:\'JetBrains Mono\', monospace; margin-top:0.5rem;">'
-            f'Simulation complete · {total_events} events persisted to audit database.'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
+        if threats_count > 0:
+            status_slot.markdown(
+                f'<div style="color:{SEV_THREAT}; font-size:0.78rem; font-family:\'JetBrains Mono\', monospace; margin-top:0.5rem;">'
+                f'⚠️ Simulation complete: {threats_count} threats detected and blocked out of {total_events} total events.'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            status_slot.markdown(
+                f'<div style="color:{SEV_SAFE}; font-size:0.78rem; font-family:\'JetBrains Mono\', monospace; margin-top:0.5rem;">'
+                f'✓ Simulation complete · All {total_events} events verified as legitimate benign traffic.'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
 
     # Instant Attack Pad
     st.markdown('<div style="margin: 2rem 0 1rem 0; border-top: 1px solid var(--border-subtle);"></div>', unsafe_allow_html=True)
-    st.markdown(render_section_header("Instant Attack Injection", "1-click sudden strike triggers", "Actions", "zap"), unsafe_allow_html=True)
+    st.markdown(render_section_header("Instant Attack Injection", "1-click sudden strike triggers with real-time popup intelligence", "Actions", "zap"), unsafe_allow_html=True)
 
     pad_col1, pad_col2, pad_col3, pad_col4, pad_col5 = st.columns(5)
     instant_slot = st.empty()
@@ -758,29 +925,42 @@ def page_attack_lab():
     def _trigger_instant_burst(attack_type: str, is_attack: bool = True):
         burst = run_instant_attack_burst(attack_type, count=6, intensity="HIGH")
         latest = burst[-1]["db_event"]
-        atk_info = ATTACK_INTELLIGENCE.get(attack_type, {})
 
         if is_attack:
             st.toast(
-                f"🚨 SUDDEN {attack_type.upper()} ATTACK INJECTED!\n{atk_info.get('why', '')[:85]}...",
+                f"🚨 SUDDEN {attack_type.upper()} ATTACK INJECTED! Opening Pop Message...",
                 icon="⚠️"
             )
+            st.session_state["modal_attack_type"] = attack_type
+            st.session_state["modal_event_data"] = {
+                "source_ip": latest.source_ip,
+                "destination_ip": latest.destination_ip,
+                "confidence": latest.confidence,
+                "risk_level": latest.risk_level,
+                "action": latest.action,
+                "risk_score": latest.risk_score,
+            }
+            st.session_state["show_attack_modal"] = True
+            st.rerun()
         else:
             st.toast("✓ CLEAN BENIGN FLOW INJECTED (Client A ➔ Server B)", icon="🛡️")
-
-        instant_slot.markdown(
-            render_attack_pop_message(
-                attack_type=latest.attack_type,
-                source_ip=latest.source_ip,
-                destination_ip=latest.destination_ip,
-                confidence=latest.confidence,
-                risk_level=latest.risk_level,
-                action=latest.action,
-                is_injected=is_attack,
-                extra_note=f"Instant 6-packet burst executed against virtual topology. Telemetry recorded in audit database. ({latest.source_ip} ➔ {latest.destination_ip})"
-            ),
-            unsafe_allow_html=True,
-        )
+            instant_slot.markdown(
+                f"""
+                <div class="soc-card" style="padding:0.75rem 1rem; border-left:2px solid {SEV_SAFE}; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <span class="status-dot dot-green" style="margin-right:6px;"></span>
+                        <b style="color:{COLOR_WHITE}; font-size:0.85rem;">CLEAN BENIGN FLOW</b>
+                        <span class="mono" style="font-size:0.75rem; color:{COLOR_GRAY}; margin-left:8px;">Client A (10.0.0.10) ➔ Server B (10.0.0.100)</span>
+                    </div>
+                    <div>
+                        <span class="soc-badge" style="color:{SEV_SAFE}; background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.3);">
+                            ACTION: ALLOW (SAFE)
+                        </span>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
     with pad_col1:
         if st.button("Port Scan", width="stretch"):
