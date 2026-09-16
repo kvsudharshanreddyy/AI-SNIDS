@@ -1,33 +1,37 @@
 """
 dashboard/theme.py
 
-AI-SNIDS Minimalist Design System & Component Library.
-Inspired by Linear, Vercel, and Apple:
+AI-SNIDS Global Minimalist Visual Design System & Component Library.
+Strictly Black-First (#000000), Linear/Vercel-inspired:
 - Absolute black (#000000) canvas
-- Subtle elevation (#080808 cards, #0D0D0D hover)
-- Razor-thin borders (#1A1A1A)
-- Monochromatic hierarchy (White / Gray / Muted)
-- Single Electric Cyan (#00E5FF) AI accent used with extreme restraint
-- Rich, smooth, subtle micro-hover states across all components
-- Zero visual noise, zero gratuitous shadows, generous whitespace
+- Subtle elevation surfaces (#050505 secondary, #080808 cards)
+- Subtle hover states (#0D0D0D, 150-250ms transitions)
+- Razor-thin structural borders (#1A1A1A, hover #262626)
+- Monochromatic text hierarchy: #FFFFFF (Primary), #A1A1AA (Secondary), #71717A (Muted)
+- Monospace values: #D4D4D8 (JetBrains Mono)
+- Restrained Electric Cyan (#00E5FF) AI accent for active/selected/intelligence
+- Security states: Green (#22C55E), Amber (#F59E0B), Red (#EF4444) strictly on small indicators
+- Zero gratuitous glows, zero gradient backgrounds, zero visual clutter
 """
 
-# ─── Minimal Color Tokens ──────────────────────────────────────────────────────
-COLOR_BLACK = "#000000"             # Absolute black canvas
+# ─── Global Minimalist Color Tokens ─────────────────────────────────────────────
+COLOR_BLACK = "#000000"             # Main background (Absolute black)
 COLOR_SURFACE = "#050505"           # Secondary surface
-COLOR_CARD = "#080808"              # Elevation card
-COLOR_CARD_HOVER = "#0D0D0D"        # Hover state
-COLOR_BORDER = "#1A1A1A"            # Subtle structural border
-COLOR_BORDER_HOVER = "#2A2A2A"      # Interactive border highlight
-COLOR_BORDER_SUBTLE = "#141414"     # Divider lines
+COLOR_SURFACE_HOVER = "#0D0D0D"     # Hover state
+COLOR_CARD = "#080808"              # Elevation card surface
+COLOR_CARD_HOVER = "#0D0D0D"        # Card hover surface
+COLOR_BORDER = "#1A1A1A"            # Structural border
+COLOR_BORDER_HOVER = "#262626"      # Interactive border highlight
+COLOR_BORDER_SUBTLE = "#121212"     # Subtle dividers
 
-COLOR_WHITE = "#FFFFFF"             # Primary focal text
-COLOR_GRAY = "#888888"              # Secondary text & labels
-COLOR_MUTED = "#555555"             # Timestamps & metadata
-COLOR_TECH = "#CCCCCC"              # Monospace values
+COLOR_WHITE = "#FFFFFF"             # Primary focal text & headers
+COLOR_GRAY = "#A1A1AA"              # Secondary text & labels (Zinc 400)
+COLOR_MUTED = "#71717A"             # Timestamps & metadata (Zinc 500)
+COLOR_TECH = "#D4D4D8"              # Monospace values & technical telemetry (Zinc 300)
 
 # Single AI Accent (Electric Cyan — restrained)
 COLOR_AI_ACCENT = "#00E5FF"
+COLOR_AI_SECONDARY = "#3B82F6"
 
 # Minimal Security Severity Tokens (indicators only)
 SEV_SAFE = "#22C55E"
@@ -41,7 +45,6 @@ COLOR_BG_SECONDARY = COLOR_SURFACE
 COLOR_BG_SIDEBAR = COLOR_BLACK
 COLOR_BORDER_SIDEBAR = COLOR_BORDER_SUBTLE
 COLOR_AI_PRIMARY = COLOR_AI_ACCENT
-COLOR_AI_SECONDARY = "#3B82F6"
 COLOR_TEXT_PRIMARY = COLOR_WHITE
 COLOR_TEXT_SECONDARY = COLOR_GRAY
 COLOR_TEXT_MUTED = COLOR_MUTED
@@ -51,7 +54,7 @@ SEV_MED = SEV_WARN
 SEV_HIGH = SEV_THREAT
 
 
-# ─── Lucide Minimal SVG Icons ──────────────────────────────────────────────────
+# ─── Lucide Minimal SVG Vector Icons ───────────────────────────────────────────
 ICONS = {
     "shield": (
         '<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" viewBox="0 0 24 24" '
@@ -147,64 +150,74 @@ def get_icon(name: str, size: int = 14, color: str = COLOR_GRAY) -> str:
     return template.format(size=size, color=color)
 
 
-# ─── Minimalist Global CSS with Rich Hover Effects ─────────────────────────────
+# ─── Minimalist Global CSS: Black-First, Linear-Inspired ───────────────────────
 GLOBAL_CSS = f"""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-    /* Design System Tokens */
+    /* Global Design System CSS Tokens */
     :root {{
-        --black: {COLOR_BLACK};
+        --background: {COLOR_BLACK};
         --surface: {COLOR_SURFACE};
-        --surface-hover: {COLOR_CARD_HOVER};
+        --surface-hover: {COLOR_SURFACE_HOVER};
         --card: {COLOR_CARD};
+        --card-hover: {COLOR_CARD_HOVER};
         --border: {COLOR_BORDER};
         --border-hover: {COLOR_BORDER_HOVER};
         --border-subtle: {COLOR_BORDER_SUBTLE};
-        --white: {COLOR_WHITE};
-        --gray: {COLOR_GRAY};
-        --muted: {COLOR_MUTED};
-        --tech: {COLOR_TECH};
+        --text-primary: {COLOR_WHITE};
+        --text-secondary: {COLOR_GRAY};
+        --text-muted: {COLOR_MUTED};
+        --text-tech: {COLOR_TECH};
         --ai-accent: {COLOR_AI_ACCENT};
+        --ai-secondary: {COLOR_AI_SECONDARY};
         --success: {SEV_SAFE};
         --warning: {SEV_WARN};
         --danger: {SEV_THREAT};
+        --critical: {SEV_CRITICAL};
     }}
 
-    /* Base Reset & Typography */
+    /* Base Reset: Absolute Black Canvas & Typography */
     html, body, [class*="css"], .stApp {{
-        background-color: var(--black) !important;
-        color: var(--white) !important;
+        background-color: var(--background) !important;
+        color: var(--text-primary) !important;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
         letter-spacing: -0.012em;
     }}
 
     header[data-testid="stHeader"] {{
-        background-color: var(--black) !important;
+        background-color: var(--background) !important;
         border-bottom: 1px solid var(--border-subtle) !important;
     }}
 
-    /* Sidebar (Pure Minimal Black with Smooth Nav Hover) */
+    /* Main Content Container Padding & Spacing */
+    .block-container {{
+        padding-top: 2rem !important;
+        padding-bottom: 3rem !important;
+        max-width: 1280px !important;
+    }}
+
+    /* Sidebar: Pure Minimal Black (#000000) */
     [data-testid="stSidebar"] {{
-        background-color: var(--black) !important;
+        background-color: var(--background) !important;
         border-right: 1px solid var(--border-subtle) !important;
     }}
     [data-testid="stSidebar"] > div:first-child {{
-        background-color: var(--black) !important;
-        padding-top: 1.5rem;
+        background-color: var(--background) !important;
+        padding-top: 1.25rem;
     }}
 
-    /* Sidebar Navigation Links */
+    /* Sidebar Navigation Radio Options (Linear-Style Links) */
     [data-testid="stSidebar"] [data-testid="stRadio"] > div {{
-        gap: 3px;
+        gap: 2px;
     }}
     [data-testid="stSidebar"] [data-testid="stRadio"] label {{
         background: transparent;
         border: 1px solid transparent;
         border-left: 2px solid transparent !important;
-        padding: 0.5rem 0.8rem;
+        padding: 0.45rem 0.75rem;
         border-radius: 6px;
-        color: var(--gray) !important;
+        color: var(--text-secondary) !important;
         font-size: 0.82rem !important;
         font-weight: 500 !important;
         letter-spacing: -0.01em;
@@ -212,14 +225,13 @@ GLOBAL_CSS = f"""
         cursor: pointer;
     }}
     [data-testid="stSidebar"] [data-testid="stRadio"] label:hover {{
-        background-color: #111111 !important;
-        color: #FFFFFF !important;
-        border-left: 2px solid rgba(0, 229, 255, 0.5) !important;
-        padding-left: 0.95rem !important;
+        background-color: var(--surface-hover) !important;
+        color: var(--text-primary) !important;
+        border-left: 2px solid rgba(0, 229, 255, 0.4) !important;
     }}
     [data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) {{
-        background-color: #111111 !important;
-        color: var(--ai-accent) !important;
+        background-color: var(--surface-hover) !important;
+        color: var(--text-primary) !important;
         font-weight: 600 !important;
         border-left: 2px solid var(--ai-accent) !important;
     }}
@@ -236,32 +248,32 @@ GLOBAL_CSS = f"""
     /* Typography Hierarchy */
     h1, h2, h3, h4 {{
         font-family: 'Inter', sans-serif !important;
-        color: var(--white) !important;
+        color: var(--text-primary) !important;
         font-weight: 600 !important;
         letter-spacing: -0.025em !important;
     }}
 
     code, kbd, samp, pre, .mono {{
         font-family: 'JetBrains Mono', monospace !important;
-        color: var(--tech);
+        color: var(--text-tech);
         font-size: 0.85em;
     }}
 
     [data-testid="stCodeBlock"] {{
+        background-color: var(--surface) !important;
         border: 1px solid var(--border) !important;
         border-radius: 6px !important;
-        transition: border-color 180ms ease, box-shadow 180ms ease !important;
+        transition: border-color 180ms ease !important;
     }}
     [data-testid="stCodeBlock"]:hover {{
-        border-color: #333333 !important;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4) !important;
+        border-color: var(--border-hover) !important;
     }}
 
-    /* Interactive Buttons with Smooth Hover & Micro-Lift */
+    /* Minimalist Buttons: Black-First, White/Cyan Hover */
     .stButton > button, .stDownloadButton > button {{
-        background-color: var(--black) !important;
-        border: 1px solid #262626 !important;
-        color: var(--white) !important;
+        background-color: var(--background) !important;
+        border: 1px solid var(--border) !important;
+        color: var(--text-primary) !important;
         border-radius: 6px !important;
         font-family: 'Inter', sans-serif !important;
         font-weight: 500 !important;
@@ -272,33 +284,42 @@ GLOBAL_CSS = f"""
         transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1) !important;
     }}
     .stButton > button:hover, .stDownloadButton > button:hover {{
-        background-color: #141414 !important;
-        border-color: var(--ai-accent) !important;
-        color: var(--ai-accent) !important;
+        background-color: #FFFFFF !important;
+        border-color: #FFFFFF !important;
+        color: #000000 !important;
         transform: translateY(-1px);
-        box-shadow: 0 2px 10px rgba(0, 229, 255, 0.15) !important;
     }}
     .stButton > button:active, .stDownloadButton > button:active {{
         transform: scale(0.98) !important;
     }}
 
-    /* Primary Accent Button */
+    /* Primary Accent Button: Restrained Cyan */
     .stButton > button[kind="primary"] {{
-        background-color: var(--black) !important;
+        background-color: var(--background) !important;
         border: 1px solid var(--ai-accent) !important;
         color: var(--ai-accent) !important;
         font-weight: 600 !important;
-        cursor: pointer !important;
     }}
     .stButton > button[kind="primary"]:hover {{
         background-color: var(--ai-accent) !important;
         border-color: var(--ai-accent) !important;
-        color: var(--black) !important;
+        color: var(--background) !important;
         transform: translateY(-1px);
-        box-shadow: 0 4px 16px rgba(0, 229, 255, 0.35) !important;
     }}
 
-    /* Metric Cards with Smooth Elevation Hover */
+    /* Danger Button (when specified) */
+    .btn-danger button, button.btn-danger {{
+        background-color: var(--background) !important;
+        border: 1px solid var(--danger) !important;
+        color: var(--danger) !important;
+    }}
+    .btn-danger button:hover, button.btn-danger:hover {{
+        background-color: var(--danger) !important;
+        border-color: var(--danger) !important;
+        color: #FFFFFF !important;
+    }}
+
+    /* Metric Cards: Pure Minimalist #080808, Razor Border #1A1A1A */
     [data-testid="metric-container"] {{
         background-color: var(--card) !important;
         border: 1px solid var(--border) !important;
@@ -309,28 +330,27 @@ GLOBAL_CSS = f"""
         cursor: default;
     }}
     [data-testid="metric-container"]:hover {{
-        background-color: #0E0E0E !important;
-        border-color: #333333 !important;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+        background-color: var(--card-hover) !important;
+        border-color: var(--border-hover) !important;
+        transform: translateY(-1px);
     }}
     [data-testid="stMetricValue"] {{
         font-family: 'Inter', sans-serif !important;
-        color: var(--white) !important;
+        color: var(--text-primary) !important;
         font-weight: 600 !important;
         font-size: 1.45rem !important;
         letter-spacing: -0.03em !important;
     }}
     [data-testid="stMetricLabel"] {{
         font-family: 'Inter', sans-serif !important;
-        color: var(--gray) !important;
+        color: var(--text-muted) !important;
         text-transform: uppercase !important;
         font-size: 0.68rem !important;
         letter-spacing: 0.04em !important;
         font-weight: 500 !important;
     }}
 
-    /* Dataframe & Tables with Subtle Border Hover */
+    /* Dataframe & Tables: Clean Monochrome */
     [data-testid="stDataFrame"] {{
         background-color: var(--card) !important;
         border: 1px solid var(--border) !important;
@@ -338,14 +358,14 @@ GLOBAL_CSS = f"""
         transition: border-color 180ms ease !important;
     }}
     [data-testid="stDataFrame"]:hover {{
-        border-color: #2E2E2E !important;
+        border-color: var(--border-hover) !important;
     }}
 
-    /* Form Controls: Inputs, Selectboxes with Hover Highlighting */
+    /* Form Controls: Inputs, Selectboxes */
     [data-testid="stSelectbox"] > div > div {{
         background-color: var(--surface) !important;
         border: 1px solid var(--border) !important;
-        color: var(--white) !important;
+        color: var(--text-primary) !important;
         border-radius: 6px !important;
         font-size: 0.82rem !important;
         cursor: pointer !important;
@@ -353,33 +373,33 @@ GLOBAL_CSS = f"""
     }}
     [data-testid="stSelectbox"] > div > div:hover {{
         border-color: var(--ai-accent) !important;
-        background-color: #080808 !important;
+        background-color: var(--card) !important;
     }}
 
     [data-testid="stTextInput"] input, [data-testid="stNumberInput"] input {{
         background-color: var(--surface) !important;
         border: 1px solid var(--border) !important;
-        color: var(--white) !important;
+        color: var(--text-primary) !important;
         border-radius: 6px !important;
         font-size: 0.82rem !important;
         transition: all 180ms ease !important;
     }}
     [data-testid="stTextInput"] input:hover, [data-testid="stNumberInput"] input:hover {{
-        border-color: #333333 !important;
+        border-color: var(--border-hover) !important;
     }}
     [data-testid="stTextInput"] input:focus, [data-testid="stNumberInput"] input:focus {{
         border-color: var(--ai-accent) !important;
-        box-shadow: 0 0 8px rgba(0, 229, 255, 0.2) !important;
+        box-shadow: none !important;
     }}
 
-    /* Slider Handle Hover */
+    /* Slider Minimalist */
     [data-testid="stSlider"] div[role="slider"] {{
-        transition: transform 150ms ease, box-shadow 150ms ease !important;
         background-color: var(--ai-accent) !important;
+        transition: transform 150ms ease !important;
+        box-shadow: none !important;
     }}
     [data-testid="stSlider"] div[role="slider"]:hover {{
-        transform: scale(1.3) !important;
-        box-shadow: 0 0 10px rgba(0, 229, 255, 0.5) !important;
+        transform: scale(1.2) !important;
     }}
 
     /* Popover & Menus */
@@ -389,13 +409,13 @@ GLOBAL_CSS = f"""
         border-radius: 6px !important;
     }}
     li[data-baseweb="menu-item"] {{
-        color: var(--gray) !important;
+        color: var(--text-secondary) !important;
         font-size: 0.82rem !important;
         transition: background-color 100ms ease, color 100ms ease !important;
     }}
     li[data-baseweb="menu-item"]:hover {{
         background-color: var(--surface-hover) !important;
-        color: var(--ai-accent) !important;
+        color: var(--text-primary) !important;
     }}
 
     /* Expanders */
@@ -403,14 +423,21 @@ GLOBAL_CSS = f"""
         background-color: var(--card) !important;
         border: 1px solid var(--border) !important;
         border-radius: 6px !important;
-        transition: all 180ms ease !important;
+        transition: border-color 180ms ease !important;
     }}
     [data-testid="stExpander"]:hover {{
-        border-color: #333333 !important;
-        background-color: #0A0A0A !important;
+        border-color: var(--border-hover) !important;
     }}
     [data-testid="stExpander"] summary:hover {{
-        color: var(--white) !important;
+        color: var(--text-primary) !important;
+    }}
+
+    /* Native Modal Dialog: Pure Minimalist Dark Container */
+    div[role="dialog"] {{
+        background-color: var(--surface) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 8px !important;
+        box-shadow: 0 16px 32px rgba(0, 0, 0, 0.9) !important;
     }}
 
     /* Scrollbar */
@@ -419,42 +446,37 @@ GLOBAL_CSS = f"""
         height: 5px;
     }}
     ::-webkit-scrollbar-track {{
-        background: var(--black);
+        background: var(--background);
     }}
     ::-webkit-scrollbar-thumb {{
-        background: #202020;
+        background: #1C1C1C;
         border-radius: 3px;
     }}
     ::-webkit-scrollbar-thumb:hover {{
-        background: #333333;
+        background: #2E2E2E;
     }}
 
-    /* Enhanced Toast Pop-up Notification: Wide, high-contrast, fully visible */
+    /* Toast Notification: Minimalist Dark Container, No Neon Halo */
     [data-testid="stToast"] {{
-        min-width: 520px !important;
-        max-width: 650px !important;
+        min-width: 480px !important;
+        max-width: 600px !important;
         width: auto !important;
-        background: #0B0B0B !important;
-        border: 1px solid #EF4444 !important;
-        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.95), 0 0 24px rgba(239, 68, 68, 0.3) !important;
-        border-radius: 8px !important;
-        padding: 1.15rem 1.35rem !important;
-        overflow: visible !important;
+        background: var(--card) !important;
+        border: 1px solid var(--border) !important;
+        border-left: 3px solid var(--ai-accent) !important;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8) !important;
+        border-radius: 6px !important;
+        padding: 1rem 1.25rem !important;
     }}
     [data-testid="stToast"] div {{
         white-space: normal !important;
         word-break: break-word !important;
-        overflow: visible !important;
-        font-size: 0.86rem !important;
-        line-height: 1.6 !important;
-        color: #EDEDED !important;
-    }}
-    [data-testid="stToast"] p {{
-        margin-bottom: 0.5rem !important;
-        white-space: normal !important;
+        font-size: 0.84rem !important;
+        line-height: 1.55 !important;
+        color: var(--text-primary) !important;
     }}
 
-    /* Reusable Cards with Micro-Lift Hover */
+    /* Reusable Cards: Linear Elevation */
     .min-card, .soc-card {{
         background-color: var(--card);
         border: 1px solid var(--border);
@@ -463,33 +485,37 @@ GLOBAL_CSS = f"""
         transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1) !important;
     }}
     .min-card:hover, .soc-card:hover {{
-        background-color: #0E0E0E !important;
-        border-color: #333333 !important;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+        background-color: var(--card-hover) !important;
+        border-color: var(--border-hover) !important;
+        transform: translateY(-1px);
     }}
 
     /* Threat Cards Hover */
     .soc-card-threat:hover {{
-        border-color: rgba(239, 68, 68, 0.5) !important;
-        background-color: #0E0E0E !important;
-        box-shadow: 0 4px 16px rgba(239, 68, 68, 0.15) !important;
-        transform: translateY(-2px);
+        border-color: rgba(239, 68, 68, 0.35) !important;
+        background-color: var(--card-hover) !important;
+        transform: translateY(-1px);
     }}
 
-    /* Scenario Selection Cards Hover */
+    /* Scenario Selection Cards */
     .soc-scenario-card {{
+        background-color: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 6px;
         transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1) !important;
         cursor: pointer;
     }}
     .soc-scenario-card:hover {{
-        background-color: #0E0E0E !important;
-        border-color: var(--ai-accent) !important;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 14px rgba(0, 229, 255, 0.18) !important;
+        background-color: var(--card-hover) !important;
+        border-color: var(--border-hover) !important;
+        transform: translateY(-1px);
+    }}
+    .soc-scenario-card-selected {{
+        border: 1px solid var(--ai-accent) !important;
+        background-color: rgba(0, 229, 255, 0.03) !important;
     }}
 
-    /* Network Topology Nodes with Hover Glow */
+    /* Network Topology Nodes */
     .soc-node {{
         background-color: var(--card);
         border: 1px solid var(--border);
@@ -497,52 +523,50 @@ GLOBAL_CSS = f"""
         padding: 0.9rem;
         text-align: center;
         cursor: default;
-        transition: all 200ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+        transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1) !important;
     }}
     .soc-node:hover {{
-        background-color: #0E0E0E !important;
-        border-color: var(--ai-accent) !important;
-        transform: translateY(-3px);
-        box-shadow: 0 6px 20px rgba(0, 229, 255, 0.18) !important;
+        background-color: var(--card-hover) !important;
+        border-color: var(--border-hover) !important;
+        transform: translateY(-1px);
     }}
     .soc-node-threat:hover {{
-        border-color: var(--danger) !important;
-        box-shadow: 0 6px 20px rgba(239, 68, 68, 0.25) !important;
-        transform: translateY(-3px);
+        border-color: rgba(239, 68, 68, 0.4) !important;
     }}
 
-    /* Flow Features Pills Hover */
+    /* Flow Features Pills */
     .soc-feat-pill {{
+        background-color: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 4px;
         transition: all 150ms ease !important;
         cursor: default;
     }}
     .soc-feat-pill:hover {{
-        background-color: #121212 !important;
-        border-color: #333333 !important;
-        transform: translateY(-1px);
+        background-color: var(--card-hover) !important;
+        border-color: var(--border-hover) !important;
     }}
 
-    /* Status Badges Hover */
+    /* Status Badges: Small, Restrained Security Indicators */
     .soc-badge {{
         display: inline-flex;
         align-items: center;
         gap: 5px;
-        padding: 1px 6px;
+        padding: 2px 7px;
         border-radius: 4px;
         font-size: 0.68rem;
         font-weight: 500;
-        letter-spacing: 0.02em;
+        letter-spacing: 0.03em;
         text-transform: uppercase;
         font-family: 'JetBrains Mono', monospace;
         transition: all 150ms ease !important;
         cursor: default;
     }}
     .soc-badge:hover {{
-        filter: brightness(1.25);
-        transform: scale(1.04);
+        filter: brightness(1.2);
     }}
 
-    /* Status Dots Hover */
+    /* Minimalist Status Dots */
     .status-dot {{
         width: 6px;
         height: 6px;
@@ -552,7 +576,7 @@ GLOBAL_CSS = f"""
         transition: transform 150ms ease !important;
     }}
     .status-dot:hover {{
-        transform: scale(1.4);
+        transform: scale(1.3);
     }}
 
     .dot-cyan {{ background-color: var(--ai-accent); }}
@@ -560,14 +584,7 @@ GLOBAL_CSS = f"""
     .dot-amber {{ background-color: var(--warning); }}
     .dot-red {{ background-color: var(--danger); }}
 
-    .pulse-indicator {{
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        display: inline-block;
-    }}
-
-    /* Sidebar Status Item Hover */
+    /* Sidebar Status Item Row */
     .sidebar-status-row {{
         display: flex;
         align-items: center;
@@ -577,54 +594,43 @@ GLOBAL_CSS = f"""
         transition: background-color 150ms ease;
     }}
     .sidebar-status-row:hover {{
-        background-color: #0F0F0F;
+        background-color: var(--surface-hover);
     }}
 
-    /* Image Container Hover */
+    /* Image Container */
     [data-testid="stImage"] img {{
         border-radius: 6px;
         border: 1px solid var(--border);
-        transition: all 180ms ease !important;
+        transition: border-color 180ms ease !important;
     }}
     [data-testid="stImage"] img:hover {{
-        border-color: #333333 !important;
-        transform: translateY(-2px);
+        border-color: var(--border-hover) !important;
     }}
 
-    /* Attack Intelligence Pop Message Container */
+    /* Attack Intelligence Pop Message Container (Minimalist Black Card) */
     .soc-pop-alert {{
-        background-color: #080808;
-        border: 1px solid #262626;
-        border-radius: 8px;
+        background-color: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 6px;
         padding: 1.15rem 1.25rem;
         margin: 0.75rem 0 1.25rem 0;
-        transition: all 200ms cubic-bezier(0.16, 1, 0.3, 1) !important;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
-        animation: fadeIn 250ms ease-out;
+        transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+        animation: fadeIn 200ms ease-out;
     }}
     .soc-pop-alert:hover {{
-        background-color: #0C0C0C !important;
-        border-color: #383838 !important;
-        transform: translateY(-2px);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7) !important;
+        background-color: var(--card-hover) !important;
+        border-color: var(--border-hover) !important;
     }}
     .soc-pop-alert-threat {{
-        border-color: rgba(239, 68, 68, 0.45) !important;
-        box-shadow: 0 4px 22px rgba(239, 68, 68, 0.15) !important;
-    }}
-    .soc-pop-alert-threat:hover {{
-        border-color: rgba(239, 68, 68, 0.7) !important;
-        box-shadow: 0 8px 28px rgba(239, 68, 68, 0.25) !important;
+        border-left: 3px solid var(--danger) !important;
     }}
     .soc-pop-alert-safe {{
-        border-color: rgba(34, 197, 94, 0.3) !important;
-    }}
-    .soc-pop-alert-safe:hover {{
-        border-color: rgba(34, 197, 94, 0.6) !important;
+        border-left: 3px solid var(--success) !important;
     }}
 
     @keyframes fadeIn {{
-        from {{ opacity: 0; transform: translateY(-4px); }}
+        from {{ opacity: 0; transform: translateY(-3px); }}
         to {{ opacity: 1; transform: translateY(0); }}
     }}
 </style>
@@ -637,7 +643,7 @@ def render_section_header(title: str, subtitle: str = None, category: str = None
     """Minimal section header with clean typography and subtle gray metadata."""
     category_html = (
         f'<div style="font-size:0.65rem; font-weight:500; letter-spacing:0.04em; '
-        f'color:{COLOR_GRAY}; text-transform:uppercase; margin-bottom:0.15rem;">'
+        f'color:{COLOR_MUTED}; text-transform:uppercase; margin-bottom:0.15rem;">'
         f'{category}</div>'
     ) if category else ""
 
@@ -646,14 +652,14 @@ def render_section_header(title: str, subtitle: str = None, category: str = None
         f'{subtitle}</div>'
     ) if subtitle else ""
 
-    icon_svg = get_icon(icon_name, size=15, color=COLOR_GRAY)
+    icon_svg = get_icon(icon_name, size=15, color=COLOR_MUTED)
 
     return f"""
     <div style="margin: 1.25rem 0 0.75rem 0;">
         {category_html}
         <div style="display:flex; align-items:center; gap:0.45rem;">
             {icon_svg}
-            <h3 style="margin:0; font-size:1.05rem; font-weight:600; color:{COLOR_WHITE};">{title}</h3>
+            <h3 style="margin:0; font-size:1.05rem; font-weight:600; color:{COLOR_WHITE}; letter-spacing:-0.02em;">{title}</h3>
         </div>
         {sub_html}
     </div>
@@ -673,7 +679,7 @@ def render_metric_card(label: str, value: str, subtitle: str = None, status_colo
     return f"""
     <div class="soc-card" style="padding:0.9rem 1.1rem; margin-bottom:0.4rem;">
         <div style="display:flex; align-items:center; justify-content:space-between;">
-            <span style="color:{COLOR_GRAY}; font-size:0.68rem; font-weight:500; letter-spacing:0.03em; text-transform:uppercase;">
+            <span style="color:{COLOR_MUTED}; font-size:0.68rem; font-weight:500; letter-spacing:0.03em; text-transform:uppercase;">
                 {label}
             </span>
             <div>{dot_html}</div>
@@ -705,7 +711,7 @@ def render_severity_badge(level: str) -> str:
         "BLOCK": (SEV_CRITICAL, "rgba(220, 38, 38, 0.1)", "rgba(220, 38, 38, 0.3)"),
         "BLOCKED": (SEV_THREAT, "rgba(239, 68, 68, 0.08)", "rgba(239, 68, 68, 0.25)"),
     }
-    fg, bg, border = color_map.get(lvl, (COLOR_GRAY, "rgba(136, 136, 136, 0.06)", "rgba(136, 136, 136, 0.15)"))
+    fg, bg, border = color_map.get(lvl, (COLOR_GRAY, "rgba(161, 161, 170, 0.06)", "rgba(161, 161, 170, 0.15)"))
 
     return (
         f'<span class="soc-badge" style="color:{fg}; background:{bg}; border:1px solid {border};">'
@@ -714,7 +720,7 @@ def render_severity_badge(level: str) -> str:
 
 
 def render_network_node(name: str, ip: str, role: str, status: str, is_threat: bool = False) -> str:
-    """Render a minimal network node card with subtle border highlight and lift on hover."""
+    """Render a minimal network node card with subtle border highlight on hover."""
     accent_color = SEV_THREAT if is_threat else (COLOR_AI_ACCENT if "Client" in name or "Router" in name else COLOR_WHITE)
     status_color = SEV_CRITICAL if "BLOCK" in status.upper() else (SEV_THREAT if is_threat else SEV_SAFE)
     icon_name = "alert-triangle" if is_threat else ("server" if "Server" in name or "Router" in name else "user")
@@ -737,11 +743,11 @@ def render_network_node(name: str, ip: str, role: str, status: str, is_threat: b
 
 
 def get_plotly_soc_layout(height: int = 240) -> dict:
-    """Standardized minimal Plotly layout: pure black, subtle #141414 grid, minimal typography."""
+    """Standardized minimal Plotly layout: absolute black, subtle #141414 grid, Inter typography."""
     return dict(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Inter, sans-serif", color=COLOR_GRAY, size=10),
+        font=dict(family="Inter, sans-serif", color=COLOR_MUTED, size=10),
         xaxis=dict(
             gridcolor="#141414",
             zerolinecolor="#141414",
@@ -859,6 +865,18 @@ ATTACK_INTELLIGENCE = {
         "mitigation": "Unrestricted routing: Traffic permitted through the network with continuous telemetry logging.",
         "severity": "SAFE",
     },
+    "Normal": {
+        "title": "Legitimate Traffic (Standard Flow)",
+        "icon": "shield-check",
+        "category": "Normal Operational Baseline",
+        "what_kind": "Authorized enterprise application communication adhering strictly to RFC TCP protocol standards.",
+        "how_it_got": "Standard three-way TCP handshake (SYN, SYN-ACK, ACK) initiated by authorized Client A (10.0.0.10) to Server B (10.0.0.100) on Port 80/443 with normal balanced packet exchanges.",
+        "why": "Standard day-to-day enterprise operations conforming to standard TCP three-way handshakes and valid protocol payloads.",
+        "danger": "None — fully authenticated and normal operational telemetry.",
+        "ai_detection": "Flow characteristics align precisely with baseline training distribution (balanced packet ratios, normal IAT).",
+        "mitigation": "Unrestricted routing: Traffic permitted through the network with continuous telemetry logging.",
+        "severity": "SAFE",
+    },
 }
 
 ATTACK_INTELLIGENCE["PortScan"] = ATTACK_INTELLIGENCE["Port Scan"]
@@ -899,7 +917,7 @@ def render_attack_pop_message(
     is_injected: bool = False,
     extra_note: str = None,
 ) -> str:
-    """Render a high-visibility real-time threat intelligence pop message card."""
+    """Render a clean, high-contrast, minimalist threat intelligence pop message card."""
     norm_type = attack_type.strip()
     if "BENIGN" in norm_type.upper() or "NORMAL" in norm_type.upper():
         norm_type = "BENIGN"
@@ -922,28 +940,28 @@ def render_attack_pop_message(
     icon_svg = get_icon(intel["icon"], size=18, color=SEV_SAFE if is_safe else (SEV_WARN if norm_type == "Suspicious Traffic" else SEV_THREAT))
 
     if is_injected:
-        banner_text = "⚡ SUDDEN MID-STREAM INJECTION · ATTACK ACTIVE"
+        banner_text = "SUDDEN MID-STREAM INJECTION · ATTACK ACTIVE"
     elif not is_safe:
-        banner_text = "🚨 THREAT INTELLIGENCE POPUP · ACTIVE INCIDENT DETECTED"
+        banner_text = "THREAT INTELLIGENCE POPUP · ACTIVE INCIDENT DETECTED"
     else:
-        banner_text = "✓ TELEMETRY POPUP · VERIFIED BENIGN FLOW"
+        banner_text = "TELEMETRY POPUP · VERIFIED BENIGN FLOW"
 
     action_color = SEV_SAFE if action in ["ALLOW", "MONITOR"] else SEV_THREAT
-    action_bg = "rgba(34, 197, 94, 0.1)" if action in ["ALLOW", "MONITOR"] else "rgba(239, 68, 68, 0.1)"
+    action_bg = "rgba(34, 197, 94, 0.08)" if action in ["ALLOW", "MONITOR"] else "rgba(239, 68, 68, 0.08)"
 
     note_html = (
-        f'<div style="margin-top:0.5rem; padding:0.4rem 0.6rem; background:#111111; border-left:2px solid {COLOR_AI_ACCENT}; font-size:0.73rem; color:{COLOR_GRAY};">'
+        f'<div style="margin-top:0.5rem; padding:0.4rem 0.6rem; background:#0D0D0D; border-left:2px solid {COLOR_AI_ACCENT}; font-size:0.73rem; color:{COLOR_GRAY};">'
         f'{extra_note}</div>'
     ) if extra_note else ""
 
     if is_safe:
         body_grid = f"""
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem; margin:0.75rem 0; background:#050505; border:1px solid #161616; border-radius:6px; padding:0.85rem;">
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem; margin:0.75rem 0; background:#050505; border:1px solid #141414; border-radius:6px; padding:0.85rem;">
             <div>
                 <div style="font-size:0.68rem; font-weight:600; color:{SEV_SAFE}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.25rem;">
                     TRAFFIC PROFILE
                 </div>
-                <div style="font-size:0.77rem; color:#CCCCCC; line-height:1.45;">
+                <div style="font-size:0.77rem; color:#D4D4D8; line-height:1.45;">
                     {intel['what_kind']}
                 </div>
             </div>
@@ -951,7 +969,7 @@ def render_attack_pop_message(
                 <div style="font-size:0.68rem; font-weight:600; color:{COLOR_AI_ACCENT}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.25rem;">
                     OPERATIONAL PURPOSE
                 </div>
-                <div style="font-size:0.77rem; color:#CCCCCC; line-height:1.45;">
+                <div style="font-size:0.77rem; color:#D4D4D8; line-height:1.45;">
                     {intel['why']}
                 </div>
             </div>
@@ -959,29 +977,29 @@ def render_attack_pop_message(
         """
     else:
         body_grid = f"""
-        <div style="display:flex; flex-direction:column; gap:0.6rem; margin:0.75rem 0; background:#050505; border:1px solid #161616; border-radius:6px; padding:0.85rem;">
+        <div style="display:flex; flex-direction:column; gap:0.6rem; margin:0.75rem 0; background:#050505; border:1px solid #141414; border-radius:6px; padding:0.85rem;">
             <div>
                 <div style="font-size:0.68rem; font-weight:600; color:{COLOR_AI_ACCENT}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.2rem;">
-                    🔍 WHAT KIND OF ATTACK IS THIS?
+                    WHAT KIND OF ATTACK IS THIS?
                 </div>
-                <div style="font-size:0.77rem; color:#EEEEEE; line-height:1.4;">
+                <div style="font-size:0.77rem; color:#FFFFFF; line-height:1.4;">
                     {intel['what_kind']}
                 </div>
             </div>
             <div style="border-top:1px solid #141414; padding-top:0.5rem;">
                 <div style="font-size:0.68rem; font-weight:600; color:{COLOR_TECH}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.2rem;">
-                    ⚡ HOW IT GOT IN / HOW IT WAS EXECUTED:
+                    HOW IT GOT IN / HOW IT WAS EXECUTED:
                 </div>
-                <div style="font-size:0.77rem; color:#CCCCCC; line-height:1.4;">
+                <div style="font-size:0.77rem; color:#D4D4D8; line-height:1.4;">
                     {intel['how_it_got']}
                 </div>
             </div>
             <div style="border-top:1px solid #141414; padding-top:0.5rem;">
                 <div style="font-size:0.68rem; font-weight:600; color:{SEV_WARN}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.2rem;">
-                    🎯 WHY IT HAPPENED & ADVERSARY INTENT:
+                    WHY IT HAPPENED & ADVERSARY INTENT:
                 </div>
-                <div style="font-size:0.77rem; color:#CCCCCC; line-height:1.4;">
-                    {intel['why']} <span style="color:#FF6B6B;">({intel['danger']})</span>
+                <div style="font-size:0.77rem; color:#D4D4D8; line-height:1.4;">
+                    {intel['why']} <span style="color:#EF4444;">({intel['danger']})</span>
                 </div>
             </div>
         </div>
@@ -989,24 +1007,24 @@ def render_attack_pop_message(
 
     return f"""
     <div class="{card_class}">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; border-bottom:1px solid #1C1C1C; padding-bottom:0.5rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; border-bottom:1px solid #141414; padding-bottom:0.5rem;">
             <div style="display:flex; align-items:center; gap:0.5rem;">
                 <span class="status-dot {dot_class}"></span>
-                <span style="font-family:'JetBrains Mono', monospace; font-size:0.68rem; color:{COLOR_GRAY}; letter-spacing:0.04em;">
+                <span style="font-family:'JetBrains Mono', monospace; font-size:0.68rem; color:{COLOR_MUTED}; letter-spacing:0.04em;">
                     {banner_text}
                 </span>
             </div>
             <div style="display:flex; align-items:center; gap:0.5rem;">
                 <span class="mono" style="font-size:0.68rem; color:{COLOR_MUTED};">{intel.get('category', '')}</span>
                 {render_severity_badge(risk_level)}
-                <span class="soc-badge" style="color:{action_color}; background:{action_bg}; border:1px solid {action_color}40;">
+                <span class="soc-badge" style="color:{action_color}; background:{action_bg}; border:1px solid {action_color}30;">
                     {action}
                 </span>
             </div>
         </div>
 
         <div style="display:flex; align-items:center; gap:0.65rem; margin-bottom:0.75rem;">
-            <div style="background:#121212; border:1px solid #242424; border-radius:6px; padding:0.45rem; display:flex; align-items:center;">
+            <div style="background:#0D0D0D; border:1px solid #1A1A1A; border-radius:6px; padding:0.45rem; display:flex; align-items:center;">
                 {icon_svg}
             </div>
             <div>
@@ -1023,7 +1041,7 @@ def render_attack_pop_message(
 
         {note_html}
 
-        <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.71rem; color:{COLOR_MUTED}; border-top:1px solid #161616; padding-top:0.5rem; margin-top:0.6rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.71rem; color:{COLOR_MUTED}; border-top:1px solid #141414; padding-top:0.5rem; margin-top:0.6rem;">
             <div>
                 <span style="color:{COLOR_GRAY};">AI Detection Logic:</span> {intel['ai_detection']}
             </div>
@@ -1033,4 +1051,3 @@ def render_attack_pop_message(
         </div>
     </div>
     """
-
