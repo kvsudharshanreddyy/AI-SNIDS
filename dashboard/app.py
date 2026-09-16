@@ -1320,10 +1320,10 @@ def page_secure_communication():
         client_key = client.derive_aes_key()
         server_key = server.derive_aes_key()
 
-        enc_result = encrypt(client_key, input_msg)
+        enc_result = encrypt(input_msg, client_key)
 
         if run_crypto:
-            dec_result = decrypt(server_key, enc_result["ciphertext"], enc_result["nonce"])
+            dec_result = decrypt(enc_result, server_key)
             st.markdown(
                 f"""
                 <div class="soc-card" style="border-left:2px solid {SEV_SAFE}; margin-top:1rem;">
@@ -1332,7 +1332,7 @@ def page_secure_communication():
                         {render_severity_badge("ALLOW")}
                     </div>
                     <div style="margin-top:0.5rem; font-size:0.8rem; color:{COLOR_WHITE};">
-                        Decrypted: <span class="mono" style="color:{COLOR_AI_ACCENT};">{dec_result['plaintext']}</span>
+                        Decrypted: <span class="mono" style="color:{COLOR_AI_ACCENT};">{dec_result.plaintext}</span>
                     </div>
                     <div style="font-size:0.7rem; color:{COLOR_MUTED}; margin-top:0.25rem;">
                         ECDH P-256 agreement confirmed. AES-256-GCM authentication tag verified.
@@ -1343,8 +1343,8 @@ def page_secure_communication():
             )
 
         if run_tamper:
-            tampered_bytes = tamper_ciphertext(enc_result["ciphertext"])
-            tamper_res = decrypt(server_key, tampered_bytes, enc_result["nonce"])
+            tampered_msg = tamper_ciphertext(enc_result)
+            tamper_res = decrypt(tampered_msg, server_key)
             st.markdown(
                 f"""
                 <div class="soc-card" style="border-left:2px solid {SEV_THREAT}; margin-top:1rem;">
@@ -1353,7 +1353,7 @@ def page_secure_communication():
                         {render_severity_badge("CRITICAL")}
                     </div>
                     <div style="margin-top:0.5rem; font-size:0.8rem; color:{COLOR_WHITE};">
-                        Error: <span class="mono" style="color:{SEV_THREAT};">{tamper_res.get('error', 'Authentication Tag Mismatch')}</span>
+                        Error: <span class="mono" style="color:{SEV_THREAT};">{tamper_res.error or 'Authentication Tag Mismatch'}</span>
                     </div>
                     <div style="font-size:0.7rem; color:{COLOR_MUTED}; margin-top:0.25rem;">
                         Ciphertext modified in transit. AES-256-GCM authentication tag rejected corrupted payload.
@@ -1369,8 +1369,9 @@ def page_secure_communication():
                 <div style="font-size:0.72rem; color:{COLOR_GRAY}; line-height:1.7;">
                     <div><b>Client Public Key:</b> <span class="mono">{client.get_public_key_hex()[:48]}...</span></div>
                     <div><b>Server Public Key:</b> <span class="mono">{server.get_public_key_hex()[:48]}...</span></div>
-                    <div><b>GCM Nonce:</b> <span class="mono">{enc_result['nonce_hex']}</span></div>
-                    <div><b>Ciphertext:</b> <span class="mono">{enc_result['ciphertext_hex'][:48]}... ({enc_result['ciphertext_length']} bytes)</span></div>
+                    <div><b>GCM Nonce:</b> <span class="mono">{enc_result.nonce}</span></div>
+                    <div><b>Ciphertext:</b> <span class="mono">{enc_result.ciphertext[:48]}... (Base64)</span></div>
+                    <div><b>Key Hint:</b> <span class="mono">{enc_result.key_hint}</span></div>
                 </div>
                 """,
                 unsafe_allow_html=True,
