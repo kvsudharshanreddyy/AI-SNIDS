@@ -5,26 +5,26 @@
   "class_weight": "balanced",
   "n_features": 20,
   "feature_names": [
-    "Fwd IAT Total",
-    "Flow Duration",
     "Idle Max",
-    "Fwd IAT Max",
-    "Flow IAT Max",
-    "Idle Mean",
     "Idle Min",
-    "Bwd IAT Total",
-    "Bwd IAT Max",
-    "Flow Bytes/s",
+    "Idle Mean",
+    "Fwd IAT Max",
+    "Fwd IAT Total",
+    "Flow IAT Max",
+    "Flow Duration",
     "Fwd IAT Std",
     "Flow IAT Std",
     "Fwd IAT Mean",
+    "Bwd IAT Total",
+    "Bwd IAT Max",
     "Bwd IAT Std",
+    "Bwd IAT Mean",
+    "Flow Bytes/s",
     "Fwd Header Length",
     "Fwd Header Length.1",
-    "Idle Std",
-    "Bwd IAT Mean",
     "Fwd IAT Min",
-    "Bwd IAT Min"
+    "Bwd IAT Min",
+    "Idle Std"
   ],
   "class_names": [
     "BENIGN",
@@ -33,6 +33,6 @@
     "DoS",
     "PortScan"
   ],
-  "train_samples": 75065,
-  "test_samples": 18767
+  "train_samples": 20000,
+  "test_samples": 5000
 }
